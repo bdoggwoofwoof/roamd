@@ -81,7 +81,7 @@ const tier=s=>s.lived?'lived':s.been?'been':s.drive?'drive':s.want?'want':'';
 const stack=[];let backWaiters=[];
 function sheet(o){
   const el=document.createElement('div');el.className='sheet';$('#sheets').append(el);
-  o.el=el;o.refresh=()=>{const b=$('.sbody',el),st=b?b.scrollTop:0;o.render(el);fillPhotos(el);const nb=$('.sbody',el);if(nb)nb.scrollTop=st};
+  o.el=el;o.refresh=()=>{const b=$('.sbody',el),st=b?b.scrollTop:0;const dk=d=>d.dataset.k||d.className,was={};el.querySelectorAll('details').forEach(d=>{was[dk(d)]=d.open});o.render(el);el.querySelectorAll('details').forEach(d=>{if(dk(d) in was)d.open=was[dk(d)]});fillPhotos(el);const nb=$('.sbody',el);if(nb)nb.scrollTop=st};
   el.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(t&&t.dataset.act==='back'){history.back();return}o.click&&o.click(e,t)});
   if(o.input)el.addEventListener('input',e=>o.input(e));
   if(o.change)el.addEventListener('change',e=>o.change(e));
@@ -144,7 +144,7 @@ async function initMap(){
   mapG=mapSvg.append('g');
   mapG.append('path').attr('class','sphere').attr('d',geoPath({type:'Sphere'}));
   mapPaths=mapG.selectAll('path.c').data(PATHD).join('path').attr('d',d=>d.d).attr('data-cc',d=>d.cc).attr('class','c');
-  gReg=mapG.append('g').attr('class','regs');gDisp=mapG.append('g').attr('class','disp');
+  gReg=mapG.append('g').attr('class','regs');gBord=mapG.append('g').attr('class','bords');gDisp=mapG.append('g').attr('class','disp');
   mapDots=mapG.selectAll('g.dotg').data(DOTS).join('g').attr('class','dotg').attr('transform',d=>`translate(${d.x},${d.y})`);
   mapDots.append('circle').attr('class','hit');mapDots.append('circle').attr('class','dm');
   gFlight=mapG.append('g').attr('class','flights');gList=mapG.append('g').attr('class','lmks');gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
@@ -297,11 +297,10 @@ function openAirports(){
           res=hits.length?`<h3 class="rhead"><span>Matches</span></h3><div class="card">${hits.map(apRow).join('')}</div>`:'<p class="empty">No airport with scheduled flights matches.</p>'}
         const tot=mine.reduce((s,[,x])=>s+x.n,0);
         const nf=flights().length;body.innerHTML=`<div class="btnrow" style="margin-bottom:8px"><button class="btn sm" data-fl="open">${ic('plane')} Flights · ${nf}</button><button class="btn sm ghost" data-fl="import">Import flights</button></div>`+res+`<h3 class="rhead"><span>Your airports</span><small>${mine.length} airports · ${tot} visits</small></h3>${mine.length?`<div class="card">${mine.map(([c,x])=>apRow([c,x.name,x.city,x.cc,x.lat,x.lon])).join('')}</div>`:'<p class="empty">Search above and tap Log for each airport you’ve flown in, out of, or through. A small plane marks each one on the map.</p>'}
-        <label class="togrow"><input type="checkbox" id="apShow"${S.settings.planes===false?'':' checked'}> Show planes and flight routes on the map</label>`;
-        $('#apShow',el).onchange=e=>{S.settings.planes=e.target.checked;save()};
+        <h3 class="rhead"><span>Airplanes on the map</span></h3>${planeSegHTML()}<p class="tiny muted">“Hide where I’ve been” leaves planes only in countries you haven’t marked Been or Lived. Off also hides flight routes.</p>`;
       };list();this.list=list;
     },
-    click(e){const fl=e.target.closest('[data-fl]');if(fl){fl.dataset.fl==='open'?openFlights():openImportFlights(()=>this.list());return}const b=e.target.closest('[data-ap]');if(!b)return;const code=b.dataset.ap;const x=(S.airports||{})[code];
+    click(e){const pm=e.target.closest('[data-act=planes]');if(pm){setPlaneMode(pm.dataset.v);this.list();return}const fl=e.target.closest('[data-fl]');if(fl){fl.dataset.fl==='open'?openFlights():openImportFlights(()=>this.list());return}const b=e.target.closest('[data-ap]');if(!b)return;const code=b.dataset.ap;const x=(S.airports||{})[code];
       const a=x?[code,x.name,x.city,x.cc,x.lat,x.lon]:(AIRPORTS||[]).find(r=>r[0]===code);if(!a)return;logAirport(a,+b.dataset.d);this.list()},
   });
   setTimeout(()=>{const i=$('#apQ',o.el);if(i&&matchMedia('(hover:hover)').matches)i.focus()},300);
@@ -336,23 +335,30 @@ async function drawMini(box,cc,sel){
   proj.fitWidth(600,fc);const p=d3.geoPath(proj);const b=p.bounds(fc);
   const u=(b[1][0]-b[0][0])/600;
   const cities=Object.entries(cs(cc).cities||{}).map(([n,x])=>{const q=proj([x.lon,x.lat]);return q?`<circle class="city s-${tier(x)}" cx="${q[0]}" cy="${q[1]}" r="${5*u}"><title>${esc(n)}</title></circle>`:''}).join('');
-  const planes=S.settings.planes===false?'':Object.entries(S.airports||{}).filter(([,x])=>x.cc===cc).map(([c,x])=>{const q=proj([x.lon,x.lat]);return q?`<g class="plane" transform="translate(${q[0]},${q[1]}) scale(${1.1*u})">${PLANE}<title>${esc(c)}</title></g>`:''}).join('');
+  const planes=Object.entries(S.airports||{}).filter(([,x])=>x.cc===cc&&planeShown(x)).map(([c,x])=>{const q=proj([x.lon,x.lat]);return q?`<g class="plane" transform="translate(${q[0]},${q[1]}) scale(${1.1*u})">${PLANE}<title>${esc(c)}</title></g>`:''}).join('');
   box.innerHTML=`<svg class="mini" viewBox="${b[0][0]-6} ${b[0][1]-6} ${b[1][0]-b[0][0]+12} ${b[1][1]-b[0][1]+12}"><g class="zg">${f.map(x=>{const t=tier(rs(cc,x.properties.id));return`<path class="rg${t?' s-'+t:''}${x.properties.id===sel?' sel':''}" data-rid="${x.properties.id}" d="${p(x)}"><title>${esc(x.properties.name)}</title></path>`}).join('')}${cities}${planes}</g></svg>`;
 }
 
 /* main map overlays */
-let gReg,gCity,gPlane,regBusy=0;
+let gReg,gBord,gCity,gPlane,regBusy=0;
+function planeMode(){const m=S.settings.planeMode;return m||(S.settings.planes===false?'off':'all')}
+function planeShown(x){const m=planeMode();if(m==='off')return false;if(m==='notbeen'&&x.cc){const s=cs(x.cc);if(s.been||s.lived)return false}return true}
+function planeSegHTML(){return`<div class="seg" role="group" aria-label="Airplanes on the map">${[['all','All airports'],['notbeen','Hide where I’ve been'],['off','Off']].map(([v,l])=>`<button data-act="planes" data-v="${v}" class="${planeMode()===v?'on':''}">${l}</button>`).join('')}</div>`}
+function setPlaneMode(v){S.settings.planeMode=v;S.settings.planes=v!=='off';save()}
 async function paintRegions(){
   if(!mapReady)return;const my=++regBusy;const idx=await regIndex();const data=[];
   for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!Object.keys(r).length||!idx[cc]||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}f.forEach(x=>data.push({cc,id:x.properties.id,f:x}))}
   if(my!==regBusy)return;
+  const ccs=new Set(data.map(d=>d.cc));
+  gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>d.d).attr('class','cb');
+  mapSvg.classed('stmode',ccs.size>0);
   gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').attr('d',d=>geoPath(d.f)).on('click',(e,d)=>openCountry(d.cc,d.id))).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
 }
 function paintPoints(){
   if(!mapReady)return;const P=geoPath.projection();
   const cities=[];for(const cc of Object.keys(S.countries))for(const[n,x]of Object.entries(cs(cc).cities||{})){const q=P([x.lon,x.lat]);if(q)cities.push({cc,n,t:tier(x),x:q[0],y:q[1]})}
   gCity.selectAll('circle').data(cities,d=>d.cc+'|'+d.n).join(en=>en.append('circle').on('click',(e,d)=>openCountry(d.cc))).attr('cx',d=>d.x).attr('cy',d=>d.y).attr('class',d=>'city s-'+d.t);
-  const planes=S.settings.planes===false?[]:Object.entries(S.airports||{}).map(([c,x])=>{const q=P([x.lon,x.lat]);return q&&{c,x:q[0],y:q[1]}}).filter(Boolean);
+  const planes=Object.entries(S.airports||{}).filter(([,x])=>planeShown(x)).map(([c,x])=>{const q=P([x.lon,x.lat]);return q&&{c,x:q[0],y:q[1]}}).filter(Boolean);
   gPlane.selectAll('g').data(planes,d=>d.c).join(en=>{const g=en.append('g').attr('class','plane');g.html(PLANE+'<title></title>');g.select('title').text(d=>d.c);g.on('click',()=>openAirports());return g});
   sizePoints();
 }
@@ -512,7 +518,7 @@ function openImportFlights(after){
   });
 }
 let gFlight;
-function paintFlights(){if(!gFlight)return;const on=S.settings.planes!==false;const seen=new Set(),data=[];
+function paintFlights(){if(!gFlight)return;const on=planeMode()!=='off';const seen=new Set(),data=[];
   if(on)for(const f of flights()){const k=[f.from,f.to].sort().join('|');if(seen.has(k))continue;seen.add(k);data.push({k,f})}
   gFlight.selectAll('path').data(data,d=>d.k).join('path').attr('class','farc').attr('d',d=>geoPath({type:'LineString',coordinates:[[d.f.fl[1],d.f.fl[0]],[d.f.tl[1],d.f.tl[0]]]}))}
 
@@ -537,7 +543,7 @@ function openList(lid,q0){
       const CAT={c:'cultural',n:'natural',m:'mixed'};
       $('#lbody',el).innerHTML=`<div class="chips" style="margin:0 0 8px">${[['all','All'],['done','Done'],['todo','To do']].map(([k,n])=>`<button class="${f===k?'on':''}" data-lf="${k}">${n}</button>`).join('')}</div>
         <div class="strow top"><span class="stname"><b>Show on the map</b><small>Ticked ones in your Been color; the rest appear as outlines when you zoom in</small></span>${switchHTML(listOnMap(lid),'data-act="lmap"','Show on the map')}</div>
-        ${keys.slice(0,ql?400:999).map(k=>{const g=groups[k],gd=g.filter(it=>t[it[0]]).length;return`<details class="lgrp"${open?' open':''}><summary><span class="flag">${BY[k]?flag(k):''}</span><b>${esc(BY[k]?.name||k)}</b><small>${gd}/${g.length}</small></summary><div class="card">${g.map(it=>`<label class="litem"><input type="checkbox" data-it="${it[0]}"${t[it[0]]?' checked':''}><span class="ptxt"><span class="pt">${esc(it[1])}</span>${it[5]?`<span class="pm">${esc(CAT[it[5]]||it[5])}${t[it[0]]?' · ticked '+fmtD(t[it[0]]):''}</span>`:t[it[0]]?`<span class="pm">ticked ${fmtD(t[it[0]])}</span>`:''}</span></label>`).join('')}</div></details>`}).join('')||'<p class="empty">Nothing matches.</p>'}`;
+        ${keys.slice(0,ql?400:999).map(k=>{const g=groups[k],gd=g.filter(it=>t[it[0]]).length;return`<details class="lgrp" data-k="${k}"${open?' open':''}><summary><span class="flag">${BY[k]?flag(k):''}</span><b>${esc(BY[k]?.name||k)}</b><small>${gd}/${g.length}</small></summary><div class="card">${g.map(it=>`<label class="litem"><input type="checkbox" data-it="${it[0]}"${t[it[0]]?' checked':''}><span class="ptxt"><span class="pt">${esc(it[1])}</span>${it[5]?`<span class="pm">${esc(CAT[it[5]]||it[5])}${t[it[0]]?' · ticked '+fmtD(t[it[0]]):''}</span>`:t[it[0]]?`<span class="pm">ticked ${fmtD(t[it[0]])}</span>`:''}</span></label>`).join('')}</div></details>`}).join('')||'<p class="empty">Nothing matches.</p>'}`;
     },
     async change(e){const id=e.target.dataset.it;if(!id)return;const L=await loadLists(),it=L.find(x=>x.id===lid).items.find(x=>x[0]===id);tickItem(lid,it,e.target.checked);if(e.target.checked)toast('Ticked'+(it[2]&&BY[it[2]]?` · ${BY[it[2]].name} marked Been`:''));this.refresh()},
     click(e,t){const lf=e.target.closest('[data-lf]');if(lf){f=lf.dataset.lf;this.refresh();return}
@@ -596,7 +602,7 @@ async function makeSharePicture(kind){
   for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!statesOn(cc)||cc===S.settings.home)continue;let f;try{f=await regGeo(cc)}catch(e){continue}
     for(const x of f){const t=tier(r[x.properties.id]||{});if(!t)continue;ctx.beginPath();path(x);ctx.fillStyle=col[t];ctx.fill()}}
   const ce=centroids();for(const d of DOTS){const t=tier(cs(d.cc));if(!t)continue;const p=ce[d.cc]&&proj([ce[d.cc][1],ce[d.cc][0]]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],6,0,7);ctx.fillStyle=col[t];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=2;ctx.stroke()}
-  if(S.settings.planes!==false){ctx.strokeStyle=mix(col.ink,col.sea,.55);ctx.lineWidth=1.4;const seen=new Set();for(const f of flights()){const k=[f.from,f.to].sort().join();if(seen.has(k))continue;seen.add(k);ctx.beginPath();path({type:'LineString',coordinates:[[f.fl[1],f.fl[0]],[f.tl[1],f.tl[0]]]});ctx.stroke()}}
+  if(planeMode()!=='off'){ctx.strokeStyle=mix(col.ink,col.sea,.55);ctx.lineWidth=1.4;const seen=new Set();for(const f of flights()){const k=[f.from,f.to].sort().join();if(seen.has(k))continue;seen.add(k);ctx.beginPath();path({type:'LineString',coordinates:[[f.fl[1],f.fl[0]],[f.tl[1],f.tl[0]]]});ctx.stroke()}}
   for(const cc of Object.keys(S.countries))for(const[,x]of Object.entries(cs(cc).cities||{})){if(!x.been)continue;const p=proj([x.lon,x.lat]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],4,0,7);ctx.fillStyle=col[tier(x)];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=1.5;ctx.stroke()}
   const n=countTotals(),conts=new Set(beenCCs().map(continentOf).filter(Boolean)).size,st=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.regions||{}).filter(x=>x.been).length,0),cit=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.cities||{}).filter(x=>x.been).length,0),fs=flightStats();
   let y=top+mh+(story?170:130);
@@ -1055,6 +1061,7 @@ function openSettings(){
       <div class="strow top"><span class="stname"><b>Count “Drove through”</b><small>Places you only passed through count toward your total</small></span>${switchHTML(!!S.settings.countDrive,'data-act="cdrive"','Count drove through')}</div>
       ${homeHTML()}</div>
       <h4 class="sub">States &amp; provinces</h4>${statesTreeHTML()}
+      <h4 class="sub">Airplanes on the map</h4>${planeSegHTML()}<p class="tiny muted">“Hide where I’ve been” keeps planes only in countries you haven’t marked Been or Lived. Off also hides flight routes.</p>
       <h4 class="sub">Disputed territories</h4><div class="strow top"><span class="stname"><b>Show disputed territories</b><small>Somaliland, Northern Cyprus, Abkhazia, Crimea, Kashmir areas and ${DISP.length-5} more become their own places to mark. They’re never counted in your countries.</small></span>${switchHTML(!!S.settings.disputed,'data-act="disp"','Show disputed territories')}</div>
       <h4 class="sub">Backup</h4><p class="muted small">Roamd saves on this phone only. A backup file holds everything, photos included. Last backup: <b>${S.settings.lastBackup?new Date(S.settings.lastBackup).toLocaleDateString():'never'}</b>.</p>
       <div class="btnrow"><button class="btn" data-act="backup">Save backup</button><label class="btn ghost">Restore from backup<input type="file" accept="application/json,.json" hidden id="restoreIn"></label></div>
@@ -1064,10 +1071,11 @@ function openSettings(){
       ${standalone?'':`<h4 class="sub">Put Roamd on your home screen</h4><p class="muted small">${ios?'In Safari, tap Share, then <b>Add to Home Screen</b>.':'In Chrome, tap ⋮, then <b>Install app</b> (or Add to Home screen).'} It then opens full screen and works offline.</p>`}
       <h4 class="sub">More</h4><div class="btnrow"><button class="btn ghost" data-act="tour">Replay the tour</button><button class="btn ghost" data-act="help">Help</button></div>
       <h4 class="sub danger">Start over</h4><button class="btn danger" data-act="wipe">Erase everything on this phone</button>
-      <p class="tiny muted ver">Roamd v3 · data: Natural Earth, geoBoundaries, OurAirports, UNESCO</p></div>`;
+      <p class="tiny muted ver">Roamd v3.1 · data: Natural Earth, geoBoundaries, OurAirports, UNESCO</p></div>`;
     },
     input(e){if(e.target.id==='packIn'){S.settings.packing=e.target.value.split('\n').map(x=>x.trim()).filter(Boolean);save()}},
     async click(e,t){if(stClick(e,()=>this.refresh()))return;const hc=e.target.closest('[data-hc]');if(hc){S.settings.homeColor=hc.dataset.hc;save();applyHomeColor();this.refresh();return}if(!t)return;const a=t.dataset.act;
+      if(a==='planes'){setPlaneMode(t.dataset.v);this.refresh();return}
       if(a==='disp'){S.settings.disputed=!S.settings.disputed;save();this.refresh()}
       else if(a==='uk'){S.settings.ukSplit=!S.settings.ukSplit;save();this.refresh()}
       else if(a==='terr'){S.settings.countTerr=!S.settings.countTerr;save();this.refresh()}

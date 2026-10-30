@@ -207,10 +207,10 @@ textarea#packIn{font-size:15px}
 .c.s-drive{fill:var(--drive)}.c.t-drive{fill:color-mix(in srgb,var(--drive) 34%,var(--land))}
 .dotg.s-drive .dm{fill:var(--drive)}.dotg.t-drive .dm{fill:color-mix(in srgb,var(--drive) 45%,var(--land))}
 .rg.s-drive,.mini .rg.s-drive{fill:var(--drive)}
-.bords{pointer-events:none}.cb{fill:none;stroke:color-mix(in srgb,var(--ink) 55%,var(--bg));stroke-width:1.3;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.bords{pointer-events:none}.map{--cbmax:1.4px}.cb{fill:none;stroke:color-mix(in srgb,var(--ink) 55%,var(--bg));stroke-width:var(--cbmax);stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .map .rg{stroke:color-mix(in srgb,var(--bg) 55%,transparent);stroke-width:.45}
-:root[data-theme="dark"] .cb{stroke:#000;stroke-width:2.2}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .cb{stroke:#000;stroke-width:2.2}}.city.s-drive{fill:var(--drive)}
+:root[data-theme="dark"] .map{--cbmax:2.4px}:root[data-theme="dark"] .cb{stroke:#000}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .map{--cbmax:2.4px}:root:not([data-theme="light"]) .cb{stroke:#000}}.city.s-drive{fill:var(--drive)}
 .dot.drive{background:var(--drive)}
 .q.on.q-drive{background:var(--drive);color:var(--drive-ink)}
 .st.on.st-drive{border-color:var(--drive);background:color-mix(in srgb,var(--drive) 15%,var(--card))}

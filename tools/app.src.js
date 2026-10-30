@@ -169,7 +169,9 @@ function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.m
 function sizeDots(){if(!mapDots)return;const u=pxPerUnit();
   // dots shrink away once you've zoomed in far enough to see the real shape
   mapDots.style('display',u>14?'none':null);
-  mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists()}
+  mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}
+// country outlines in state mode: thin when a country is small on screen, full weight once it's big
+function sizeBorders(){if(!gBord||!mapSvg)return;const u=pxPerUnit(),zf=Math.max(.25,Math.min(1,.1+.09*curK));gBord.selectAll('path').style('stroke-width',d=>`calc(var(--cbmax) * ${Math.max(.18,Math.min(zf,(d.sz||0)*u/140)).toFixed(3)})`)}
 const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc));return t?(partial(cc)?' t-':' s-')+t:''};
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
   mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
@@ -350,7 +352,7 @@ async function paintRegions(){
   for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!Object.keys(r).length||!idx[cc]||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}f.forEach(x=>data.push({cc,id:x.properties.id,f:x}))}
   if(my!==regBusy)return;
   const ccs=new Set(data.map(d=>d.cc));
-  gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>d.d).attr('class','cb');
+  gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>d.d).attr('class','cb');sizeBorders();
   mapSvg.classed('stmode',ccs.size>0);
   gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').attr('d',d=>geoPath(d.f)).on('click',(e,d)=>openCountry(d.cc,d.id))).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
 }

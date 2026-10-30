@@ -1,4 +1,4 @@
-const V='roamd-v9';
+const V='roamd-v10';
 const SHELL=['./','index.html','app.js','manifest.webmanifest','icon.svg','icon-512.png','apple-touch-icon.png'];
 const CDN=['vendor/d3.min.js','vendor/topojson-client.min.js','vendor/countries-50m.json','regions/index.json'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL).then(()=>Promise.all(CDN.map(u=>c.add(u).catch(()=>{}))))));self.skipWaiting()});

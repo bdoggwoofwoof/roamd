@@ -106,6 +106,9 @@ function render(){({map:renderMapView,list:renderList,plans:renderPlans,compare:
 
 /* ---------- map ---------- */
 let mapReady=false,mapSvg,mapG,mapPaths,mapDots,zoom,curK=1,FEATS=[],PATHD=[],DOTS=[],geoPath;
+// The big map spins east–west forever: sideways panning turns the projection (bigPath) instead of sliding it.
+// geoPath stays unrotated for everything else (small maps, bounds, photo lookups).
+let bigProj,bigPath,curRot=0,rotWant=0,rotRAF=0,EQ=1,mapOuter,wrapL,wrapR;
 const MW=1000,MH=520;
 function loadScript(src){return new Promise((res,rej)=>{if($(`script[src="${src}"]`))return res();const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.append(s)})}
 let geoP;
@@ -114,7 +117,7 @@ function loadGeo(){return geoP||(geoP=(async()=>{
   const topo=await (await fetch(CDN.map)).json();
   FEATS=topojson.feature(topo,topo.objects.countries).features;
   const proj=d3.geoNaturalEarth1().fitExtent([[4,4],[MW-4,MH-4]],{type:'Sphere'});
-  geoPath=d3.geoPath(proj);
+  geoPath=d3.geoPath(proj);bigProj=d3.geoNaturalEarth1().scale(proj.scale()).translate(proj.translate());bigPath=d3.geoPath(bigProj);EQ=proj.scale()*0.8707;
   // Split overseas parts that the map data glues onto the home country, so each fills only for itself.
   const SPLIT={FR:(x,y)=>x<-30?(y<8?'GF':y>15.5?'GP':'MQ'):x>40&&y<0?(x>50?'RE':'YT'):'',NL:x=>x<-30?'BQ':'',NO:(x,y)=>y>74||x<-5?'SJ':''};
   const parts=[];
@@ -132,8 +135,8 @@ function loadGeo(){return geoP||(geoP=(async()=>{
   for(const p of PATHD){if(!p.cc)continue;const g=p.f.geometry;const polys=g.type==='MultiPolygon'?g.coordinates:[g.coordinates];
     for(const poly of polys){const pg={type:'Polygon',coordinates:poly},a=geoPath.area(pg);area[p.cc]=(area[p.cc]||0)+a;if(!best[p.cc]||a>best[p.cc].a)best[p.cc]={a,pt:geoPath.centroid(pg)}}}
   const proj2=geoPath.projection();
-  DOTS=Object.keys(area).filter(cc=>area[cc]<8&&!isNaN(best[cc].pt[0])).map(cc=>({cc,x:best[cc].pt[0],y:best[cc].pt[1]}));
-  for(const[cc,lon,lat]of[['TV',179.2,-8.5],['TK',-171.8,-9.2],['GI',-5.35,36.14],['CC',96.87,-12.16],['CX',105.69,-10.45]])if(!area[cc]){const[x,y]=proj2([lon,lat]);DOTS.push({cc,x,y})}
+  DOTS=Object.keys(area).filter(cc=>area[cc]<8&&!isNaN(best[cc].pt[0])).map(cc=>({cc,x:best[cc].pt[0],y:best[cc].pt[1],ll:proj2.invert(best[cc].pt)}));
+  for(const[cc,lon,lat]of[['TV',179.2,-8.5],['TK',-171.8,-9.2],['GI',-5.35,36.14],['CC',96.87,-12.16],['CX',105.69,-10.45]])if(!area[cc]){const[x,y]=proj2([lon,lat]);DOTS.push({cc,x,y,ll:[lon,lat]})}
   return true;
 })().catch(e=>{geoP=null;throw e}))}
 async function initMap(){
@@ -141,29 +144,45 @@ async function initMap(){
   try{await loadGeo()}catch(e){box.innerHTML='<p class="muted pad">The map needs internet the first time it opens. Countries, Plans and Compare work without it.</p><button class="btn sm" id="mapRetry">Try again</button>';$('#mapRetry').onclick=()=>{box.innerHTML='<div class="loading">Loading map…</div>';initMap()};return}
   box.innerHTML='';
   mapSvg=d3.select(box).append('svg').attr('viewBox',`0 0 ${MW} ${MH}`).attr('class','map').attr('role','img').attr('aria-label','World map');
-  mapG=mapSvg.append('g');
-  mapG.append('path').attr('class','sphere').attr('d',geoPath({type:'Sphere'}));
-  mapPaths=mapG.selectAll('path.c').data(PATHD).join('path').attr('d',d=>d.d).attr('data-cc',d=>d.cc).attr('class','c');
+  mapG=mapSvg.append('g');const outer=mapG;mapG=outer.append('g').attr('id','roamWorld');
+  wrapL=outer.append('use').attr('href','#roamWorld').attr('class','wrapc').attr('x',-2*Math.PI*EQ);wrapR=outer.append('use').attr('href','#roamWorld').attr('class','wrapc').attr('x',2*Math.PI*EQ);mapOuter=outer;
+  mapG.append('path').attr('class','sphere').attr('d',bigPath({type:'Sphere'}));
+  mapPaths=mapG.selectAll('path.c').data(PATHD).join('path').attr('d',d=>bigPath(d.f)).attr('data-cc',d=>d.cc).attr('class','c');
   gReg=mapG.append('g').attr('class','regs');gBord=mapG.append('g').attr('class','bords');gDisp=mapG.append('g').attr('class','disp');
-  mapDots=mapG.selectAll('g.dotg').data(DOTS).join('g').attr('class','dotg').attr('transform',d=>`translate(${d.x},${d.y})`);
+  mapDots=mapG.selectAll('g.dotg').data(DOTS).join('g').attr('class','dotg').attr('transform',d=>{const q=bigProj(d.ll);return`translate(${q[0]},${q[1]})`});
   mapDots.append('circle').attr('class','hit');mapDots.append('circle').attr('class','dm');
   gFlight=mapG.append('g').attr('class','flights');gList=mapG.append('g').attr('class','lmks');gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
   mapPaths.on('click',(e,d)=>{if(d.cc)openCountry(d.cc)});
   mapDots.on('click',(e,d)=>openCountry(d.cc));
-  zoom=d3.zoom().scaleExtent([1,128]).translateExtent([[-200,-120],[MW+200,MH+120]]).on('zoom',e=>{mapG.attr('transform',e.transform);curK=e.transform.k;sizeDots()});
+  zoom=d3.zoom().scaleExtent([1,128]).translateExtent([[-1e9,-120],[1e9,MH+120]]).on('zoom',e=>{applyT(e.transform);sizeDots()}).on('end',()=>{if(needRecentre())reproject()});
   mapSvg.call(zoom).on('dblclick.zoom',null);
   mapReady=true;paintMap();fitStart();
 }
 function viewDims(){const r=mapSvg.node().getBoundingClientRect();const s=Math.min(r.width/MW,r.height/MH)||1;return{vw:r.width/s,vh:r.height/s}}
-function fitStart(){const{vw,vh}=viewDims();const k=Math.max(1,Math.min(1.55,vh/MH));mapSvg.call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(MW/2-20),MH/2-k*(MH/2-10)).scale(k))}
-function mainBounds(f){let g=f.geometry;if(g&&g.type==='MultiPolygon'){let best=null,ba=-1;for(const p of g.coordinates){const a=geoPath.area({type:'Polygon',coordinates:p});if(a>ba){ba=a;best=p}}g={type:'Polygon',coordinates:best}}return geoPath.bounds(g)}
+function fitStart(){if(Math.abs(curRot)>.01)reproject(0);const{vw,vh}=viewDims();const k=Math.max(1,Math.min(1.55,vh/MH));mapSvg.call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(MW/2-20),MH/2-k*(MH/2-10)).scale(k))}
+function mainBounds(f,P=geoPath){let g=f.geometry;if(g&&g.type==='MultiPolygon'){let best=null,ba=-1;for(const p of g.coordinates){const a=P.area({type:'Polygon',coordinates:p});if(a>ba){ba=a;best=p}}g={type:'Polygon',coordinates:best}}return P.bounds(g)}
+/* Sideways panning slides the map (cheap) with a copy on each side so it never runs out;
+   when you let go near an edge, the globe is turned to match and redrawn centred.
+   rotWant = the turn the current pan amounts to; curRot = the turn the map is drawn at. */
+const rad=d=>d*Math.PI/180;
+function applyT(t){curK=t.k;const cx=MW/2-t.k*MW/2;rotWant=(t.x-cx)/(t.k*EQ)*180/Math.PI;const vx=t.x-rad(curRot)*t.k*EQ;
+  mapOuter.attr('transform',`translate(${vx},${t.y}) scale(${t.k})`);
+  const{vw}=viewDims(),L=(MW/2-vw/2-vx)/t.k,Rr=(MW/2+vw/2-vx)/t.k,half=Math.PI*EQ;
+  wrapL.style('display',L<MW/2-half?null:'none');wrapR.style('display',Rr>MW/2+half?null:'none')}
+function needRecentre(){if(!mapReady)return false;const t=d3.zoomTransform(mapSvg.node());const{vw}=viewDims(),vx=t.x-rad(curRot)*t.k*EQ,L=(MW/2-vw/2-vx)/t.k,Rr=(MW/2+vw/2-vx)/t.k,half=Math.PI*EQ;
+  return Math.abs(rotWant-curRot)>.05&&(L<MW/2-half+4||Rr>MW/2+half-4)}
+function reproject(r0){if(!mapReady)return;curRot=r0==null?rotWant:r0;const r=((curRot+180)%360+360)%360-180;bigProj.rotate([r,0]);
+  mapPaths.attr('d',d=>bigPath(d.f));
+  mapDots.attr('transform',d=>{const q=bigProj(d.ll);d.x=q[0];d.y=q[1];return`translate(${q[0]},${q[1]})`});
+  gReg.selectAll('path').attr('d',d=>bigPath(d.f));gBord.selectAll('path').attr('d',d=>bigPath(d.f));gDisp.selectAll('path').attr('d',d=>bigPath(d));
+  paintPoints();paintFlights();paintLists();applyT(d3.zoomTransform(mapSvg.node()))}
 function zoomRegion(rc){
   if(!mapReady)return;if(!rc){fitStart();return}
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
-  for(const p of PATHD){const c=BY[p.cc];if(!c||c.reg!==rc||(!c.core&&rc!=='AN')||(rc==='EU'&&p.cc==='RU'))continue;const[[a,b],[cc,d]]=mainBounds(p.f);x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,cc);y1=Math.max(y1,d)}
-  if(x0>x1)return;
+  const box=()=>{x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const p of PATHD){const c=BY[p.cc];if(!c||c.reg!==rc||(!c.core&&rc!=='AN')||(rc==='EU'&&p.cc==='RU'))continue;const[[a,b],[cc,d]]=mainBounds(p.f,bigPath);x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,cc);y1=Math.max(y1,d)}};
+  box();if(x0>x1)return;const wide=()=>x1-x0>Math.PI*EQ*1.2;if(wide()&&Math.abs(curRot)>.01){reproject(0);box()}if(wide()){reproject(180);box()}
   const{vw,vh}=viewDims();const k=Math.min(20,0.88/Math.max((x1-x0)/vw,(y1-y0)/vh));
-  mapSvg.transition().duration(600).call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(x0+x1)/2,MH/2-k*(y0+y1)/2).scale(k));
+  mapSvg.transition().duration(600).call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(x0+x1)/2+rad(curRot)*k*EQ,MH/2-k*(y0+y1)/2).scale(k));
 }
 function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.min(r.width/MW,r.height/MH)||.4)*curK}
 function sizeDots(){if(!mapDots)return;const u=pxPerUnit();
@@ -357,12 +376,12 @@ async function paintRegions(){
   for(const cc of stView()?Object.keys(S.countries):[]){const r=cs(cc).regions;if(!r||!Object.keys(r).length||!idx[cc]||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}f.forEach(x=>data.push({cc,id:x.properties.id,f:x}))}
   if(my!==regBusy)return;
   const ccs=new Set(data.map(d=>d.cc));
-  gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>d.d).attr('class','cb');sizeBorders();
+  gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>bigPath(d.f)).attr('class','cb');sizeBorders();
   mapSvg.classed('stmode',ccs.size>0);
-  gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').attr('d',d=>geoPath(d.f)).on('click',(e,d)=>openCountry(d.cc,d.id))).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
+  gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').on('click',(e,d)=>openCountry(d.cc,d.id))).attr('d',d=>bigPath(d.f)).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
 }
 function paintPoints(){
-  if(!mapReady)return;const P=geoPath.projection();
+  if(!mapReady)return;const P=bigProj;
   const cities=[];for(const cc of Object.keys(S.countries))for(const[n,x]of Object.entries(cs(cc).cities||{})){const q=P([x.lon,x.lat]);if(q)cities.push({cc,n,t:tier(x),x:q[0],y:q[1]})}
   gCity.selectAll('circle').data(cities,d=>d.cc+'|'+d.n).join(en=>en.append('circle').on('click',(e,d)=>openCountry(d.cc))).attr('cx',d=>d.x).attr('cy',d=>d.y).attr('class',d=>'city s-'+d.t);
   const planes=Object.entries(S.airports||{}).filter(([,x])=>planeShown(x)).map(([c,x])=>{const q=P([x.lon,x.lat]);return q&&{c,x:q[0],y:q[1]}}).filter(Boolean);
@@ -527,7 +546,7 @@ function openImportFlights(after){
 let gFlight;
 function paintFlights(){if(!gFlight)return;const on=planeMode()!=='off';const seen=new Set(),data=[];
   if(on)for(const f of flights()){const k=[f.from,f.to].sort().join('|');if(seen.has(k))continue;seen.add(k);data.push({k,f})}
-  gFlight.selectAll('path').data(data,d=>d.k).join('path').attr('class','farc').attr('d',d=>geoPath({type:'LineString',coordinates:[[d.f.fl[1],d.f.fl[0]],[d.f.tl[1],d.f.tl[0]]]}))}
+  gFlight.selectAll('path').data(data,d=>d.k).join('path').attr('class','farc').attr('d',d=>bigPath({type:'LineString',coordinates:[[d.f.fl[1],d.f.fl[0]],[d.f.tl[1],d.f.tl[0]]]}))}
 
 /* ---- tick-off lists ---- */
 let LISTS=null;
@@ -559,9 +578,9 @@ function openList(lid,q0){
 }
 let gList;
 async function paintLists(){if(!gList||!mapReady)return;const on=Object.entries(S.settings.listMap||{}).filter(([,v])=>v).map(([k])=>k);
-  if(!on.length){gList.selectAll('path').remove();return}let L;try{L=await loadLists()}catch(e){return}const P=geoPath.projection(),data=[];
+  if(!on.length){gList.selectAll('path').remove();return}let L;try{L=await loadLists()}catch(e){return}const P=bigProj,data=[];
   for(const l of L)if(on.includes(l.id)){const t=ticks(l.id);for(const it of l.items){const q=P([it[4],it[3]]);if(q)data.push({k:l.id+it[0],lid:l.id,name:it[1],x:q[0],y:q[1],done:!!t[it[0]]})}}
-  gList.selectAll('path').data(data,d=>d.k).join(en=>en.append('path').attr('d','M0,-5L4.5,0L0,5L-4.5,0Z').on('click',(e,d)=>openList(d.lid,d.name)).append('title')).attr('class',d=>'lmk'+(d.done?' done':'')).select('title').text(d=>d.name);
+  gList.selectAll('path').data(data,d=>d.k).join(en=>{const p=en.append('path').attr('d','M0,-5L4.5,0L0,5L-4.5,0Z').on('click',(e,d)=>openList(d.lid,d.name));p.append('title');return p}).attr('class',d=>'lmk'+(d.done?' done':'')).select('title').text(d=>d.name);
   sizeLists()}
 function sizeLists(){if(!gList||!mapReady)return;const u=pxPerUnit(),close=u>2.2;gList.selectAll('path').style('display',d=>d.done||close?null:'none').attr('transform',d=>`translate(${d.x},${d.y}) scale(${(d.done?1.15:.85)/u})`)}
 
@@ -1150,7 +1169,7 @@ async function paintDisputed(){
   if(!mapReady||!gDisp)return;
   if(!S.settings.disputed){gDisp.selectAll('path').remove();return}
   if(!dispFeats){try{const t=await(await fetch('disputed.json')).json();dispFeats=topojson.feature(t,t.objects.d).features}catch(e){return}}
-  gDisp.selectAll('path').data(dispFeats,d=>d.properties.id).join(en=>en.append('path').attr('d',d=>geoPath(d)).on('click',(e,d)=>openCountry(d.properties.id)).append('title').text(d=>d.properties.name))
+  gDisp.selectAll('path').data(dispFeats,d=>d.properties.id).join(en=>{const p=en.append('path').on('click',(e,d)=>openCountry(d.properties.id));p.append('title').text(d=>d.properties.name);return p}).attr('d',d=>bigPath(d))
     .attr('class',d=>'c dsp'+fillCls(d.properties.id));
 }
 
@@ -1228,7 +1247,7 @@ function demoState(){
 // Each step: [tab, open, selector, title, text, opts]. open: '' | 'country:US' | 'settings' | 'airports' | 'plan:p1'. No selector = centered card.
 const TOUR=[
   ['map','',null,'Welcome to Roamd','A quick look at what it can do. It takes about three minutes, and you can skip it any time. The places on the map are samples for the tour; they disappear when it ends.'],
-  ['map','','#mapBox','Your map','It fills in as you mark places: a color for Been, Want to go and Lived, and your home country in its own color. Tap any country to open it. Pinch or use + and − to zoom.'],
+  ['map','','#mapBox','Your map','It fills in as you mark places: a color for Been, Want to go and Lived, and your home country in its own color. Tap any country to open it. Pinch or use + and − to zoom, and drag sideways to spin the world around as far as you like.'],
   ['map','','#legend','Colors and counts','The numbers count countries. A country with marked states or cities turns a lighter shade, and the marked parts show in full color.'],
   ['map','','#regionSel','Jump to a region','Zoom straight to Europe, Southeast Asia, the Middle East and the rest.'],
   ['map','','#zfull','Full screen','Make the map fill the screen. Back, or the same button, returns. Country maps and Compare maps have one too.'],

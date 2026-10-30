@@ -27,6 +27,7 @@ const ID20 = {
 const ENG = { 'Eastern': 'East of England', 'East': 'East of England' };
 const slug = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toUpperCase();
 function group(cc, p) {
+  if (cc === 'IQ' && p.geonunit === 'Iraqi Kurdistan') return [p.iso_3166_2, (p.name_en || p.name) + ' (Kurdistan Region)'];
   // returns [id, name]
   if (cc === 'ID') { const g = ID20[p.name]; if (!g) throw new Error('ID unmapped ' + p.name); return ['ID-' + slug(g), g]; }
   if (cc === 'GB') { if (p.geonunit === 'England') { const r = ENG[p.region] || p.region; return ['GB-ENG-' + slug(r), r === 'Greater London' ? 'London' : r]; } return ['GB-' + slug(p.geonunit), p.geonunit]; }
@@ -41,9 +42,10 @@ for (const c of Object.keys(_cnt)) if (_cnt[c] > 60 && !KEEP.has(c) && c !== 'GB
   for (const cc of COUNTRIES) {
     let feats = SRC.features.filter(f => f.properties.iso_a2 === cc);
     if (!feats.length) { console.log('none', cc); continue; }
-    const units = {}; feats.forEach(f => { const u = f.properties.geonunit || ''; units[u] = (units[u] || 0) + 1 });
-    const main = Object.entries(units).sort((a, b) => b[1] - a[1])[0][0];
-    feats = feats.filter(f => (f.properties.geonunit || '') === main || (cc === 'GB'));
+    // Drop only parts that Roamd lists as their own places (overseas territories), keep every other unit
+    // (e.g. Iraqi Kurdistan, Wallonia, Republika Srpska, Zanzibar, Azores).
+    const SEPARATE = new Set(['French Guiana', 'Martinique', 'Guadeloupe', 'Reunion', 'Mayotte', 'Svalbard', 'Bouvet Island', 'Paracel Islands']);
+    feats = feats.filter(f => !SEPARATE.has(f.properties.geonunit));
     const ids = new Set();
     const gj = { type: 'FeatureCollection', features: feats.map(f => { const [id, name] = group(cc, f.properties); return { type: 'Feature', geometry: f.geometry, properties: { id, name } }; }) };
     // make ids unique per distinct name when needed

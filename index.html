@@ -17,9 +17,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f6f3ee;--card:#fffdf9;--ink:#1f1c18;--muted:#6f685e;--line:#e5ded2;--land:#d9d2c5;--sea:#e9eef0;--been:#2f9e7a;--want:#e2a03a;--lived:#5b57d1;--accent:#c4532d;--accent-ink:#fff;--soft:#efe9df;--danger:#b4372b;
---been-ink:#fff;--want-ink:#241a05;--lived-ink:#fff;--both:#2f9e7a;--mine:#c4532d;--them:#3b7fd1;--shadow:0 1px 2px rgba(40,30,20,.06),0 4px 14px rgba(40,30,20,.06);color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141311;--card:#1d1b18;--ink:#f1ece4;--muted:#a69e92;--line:#322e29;--land:#3b3631;--sea:#191c1e;--been:#3fbf93;--want:#f0b24f;--lived:#8682f2;--accent:#e2724b;--soft:#26231f;--danger:#e2604f;--both:#3fbf93;--mine:#e2724b;--them:#5aa0f0;--shadow:none;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#141311;--card:#1d1b18;--ink:#f1ece4;--muted:#a69e92;--line:#322e29;--land:#3b3631;--sea:#191c1e;--been:#3fbf93;--want:#f0b24f;--lived:#8682f2;--accent:#e2724b;--soft:#26231f;--danger:#e2604f;--both:#3fbf93;--mine:#e2724b;--them:#5aa0f0;--shadow:none;color-scheme:dark}
+--drive:#2f7cc4;--been-ink:#fff;--want-ink:#241a05;--lived-ink:#fff;--drive-ink:#fff;--both:#2f9e7a;--mine:#c4532d;--them:#3b7fd1;--shadow:0 1px 2px rgba(40,30,20,.06),0 4px 14px rgba(40,30,20,.06);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141311;--card:#1d1b18;--ink:#f1ece4;--muted:#a69e92;--line:#322e29;--land:#3b3631;--sea:#191c1e;--been:#3fbf93;--want:#f0b24f;--lived:#8682f2;--drive:#5aa0e0;--drive-ink:#14171b;--accent:#e2724b;--soft:#26231f;--danger:#e2604f;--both:#3fbf93;--mine:#e2724b;--them:#5aa0f0;--shadow:none;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141311;--card:#1d1b18;--ink:#f1ece4;--muted:#a69e92;--line:#322e29;--land:#3b3631;--sea:#191c1e;--been:#3fbf93;--want:#f0b24f;--lived:#8682f2;--drive:#5aa0e0;--drive-ink:#14171b;--accent:#e2724b;--soft:#26231f;--danger:#e2604f;--both:#3fbf93;--mine:#e2724b;--them:#5aa0f0;--shadow:none;color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
 body{position:fixed;inset:0;display:flex;flex-direction:column;overflow:hidden}
@@ -160,6 +160,59 @@ summary .chev{transition:transform .2s;color:var(--muted)}details[open]>summary 
 .btn.wide{width:100%}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .cw-prev{display:flex;gap:6px;margin:6px 0}.cw-prev span{flex:1;text-align:center;padding:10px 4px;border-radius:10px;font-weight:700;font-size:14px}
+
+/* v4 */
+:root{--home:#c4532d}
+.c.home,.dotg.home .dm{fill:var(--home)}
+.farc{fill:none;stroke:var(--ink);stroke-opacity:.45;stroke-width:1.1;vector-effect:non-scaling-stroke;pointer-events:none}
+.lmk{fill:none;stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;opacity:.7}.lmk.done{fill:var(--been);stroke:var(--card);opacity:1}
+#zfull .ic{width:19px;height:19px}
+.mapwrap.fs{position:fixed;inset:0;z-index:15;border-radius:0;border:0;min-height:0}
+.mapwrap.fs .mapctl{top:calc(env(safe-area-inset-top) + 10px)}
+body.mapfs .tabs{visibility:hidden}
+.cminiwrap{position:relative}.mfs{position:absolute;top:8px;right:8px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.sheet.fsheet .fsbody{flex:1;display:flex;flex-direction:column;min-height:0}
+.fsmap{flex:1;min-height:0;background:var(--sea);position:relative}
+.fsmap svg{width:100%;height:100%;display:block;touch-action:none;max-height:none}
+.fsbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;padding:10px 16px calc(env(safe-area-inset-bottom) + 12px);background:var(--bg);border-top:1px solid var(--line);min-height:62px}
+.fsleg{padding:10px 16px calc(env(safe-area-inset-bottom) + 12px);margin:0}
+.qrow{display:flex;gap:8px;align-items:center}.qrow input{flex:1;min-width:0}.qrow .btn{flex:none}
+.visit{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 12px 10px;margin:8px 0}
+.vrow{display:flex;gap:6px;align-items:center}.vrow input{flex:1}
+.tlctl{display:flex;align-items:center;gap:10px;margin:10px 0 4px}.tlctl input{flex:1}.tlctl b{min-width:120px;text-align:right;font-size:14px}
+.tlrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}.tlrow:last-child{border:0}
+.newtag{font-size:11px;font-weight:700;background:color-mix(in srgb,var(--been) 22%,transparent);padding:2px 7px;border-radius:99px;margin-left:4px}
+.appick{display:flex;flex-direction:column;gap:2px;margin:-4px 0 6px}
+.appk{text-align:left;padding:8px 10px;border-radius:10px;background:var(--soft);font-size:14px}.appk small{color:var(--muted);display:block}
+.lrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}.lrow:last-child{border:0}.lrow .bar{margin-top:6px;height:6px}.lrow .chev{color:var(--muted)}
+details.lgrp{margin:8px 0}details.lgrp summary{display:flex;align-items:center;gap:8px;padding:8px 2px;cursor:pointer;list-style:none}details.lgrp summary::-webkit-details-marker{display:none}details.lgrp summary b{flex:1}details.lgrp summary small{color:var(--muted);font-weight:700}
+.litem{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}.litem:last-child{border:0}.litem input{width:22px;height:22px;accent-color:var(--been);flex:none}
+.badges{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.badge{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:2px;opacity:.72}
+.badge.on{opacity:1;border-color:color-mix(in srgb,var(--been) 55%,var(--line));background:color-mix(in srgb,var(--been) 10%,var(--card))}
+.badge .bico{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:var(--muted);margin-bottom:4px}.badge.on .bico{background:var(--been);color:var(--been-ink)}.badge .bico .ic{width:17px;height:17px;fill:currentColor;stroke:none}
+.badge b{font-size:14.5px}.badge>span:not(.bico):not(.bprog){font-size:12px;color:var(--muted);line-height:1.3}.badge small{font-size:11px;color:var(--muted)}
+.bprog{height:5px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:6px}.bprog i{display:block;height:100%;background:var(--been)}
+.farcard{display:flex;flex-direction:column;gap:2px;margin-top:10px;text-align:left;width:100%}.farcard b{font-size:18px}
+.fcard p{margin:4px 0}
+.tile b small{font-size:13px;color:var(--muted)}
+.homecols{display:flex;gap:8px;align-items:center;margin:-2px 2px 10px;flex-wrap:wrap}.hc{width:34px;height:34px;border-radius:50%;border:3px solid var(--bg);box-shadow:0 0 0 1px var(--line)}.hc.on{box-shadow:0 0 0 2px var(--ink)}
+.shimg{margin:12px 0;border-radius:14px;overflow:hidden;border:1px solid var(--line);position:relative;min-height:200px;background:var(--soft)}.shimg img{display:block;width:100%}
+.phres{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin:8px 0;opacity:.55}
+.phres.on{opacity:1;border-color:var(--been)}.phres .tick{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:transparent;font-weight:800;flex:none}.phres.on .tick{background:var(--been);color:var(--been-ink)}
+.packrow{margin-top:8px}
+textarea#packIn{font-size:15px}
+
+/* drove through */
+.c.s-drive{fill:var(--drive)}.c.t-drive{fill:color-mix(in srgb,var(--drive) 34%,var(--land))}
+.dotg.s-drive .dm{fill:var(--drive)}.dotg.t-drive .dm{fill:color-mix(in srgb,var(--drive) 45%,var(--land))}
+.rg.s-drive,.mini .rg.s-drive{fill:var(--drive)}.city.s-drive{fill:var(--drive)}
+.dot.drive{background:var(--drive)}
+.q.on.q-drive{background:var(--drive);color:var(--drive-ink)}
+.st.on.st-drive{border-color:var(--drive);background:color-mix(in srgb,var(--drive) 15%,var(--card))}
+.stoggles{grid-template-columns:repeat(2,1fr)!important}
+.q{min-width:40px;padding:7px 6px}
+@media (max-width:400px){.crow .q{min-width:34px;padding:7px 4px;font-size:11px}.crow{gap:4px;padding-left:10px}}
 /* sheets */
 .sheet{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1)}
 .sheet.in{transform:none}
@@ -254,13 +307,13 @@ body.tour-on main,body.tour-on #sheets{transition:opacity .2s}body.tour-fading m
   <section id="v-map" class="view">
     <div id="nag"></div>
     <div class="mapwrap"><div id="mapBox"><div class="loading">Loading map…</div></div>
-      <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Whole world">⟲</button><button id="zplane" aria-label="Airports"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/></svg></button></div></div>
+      <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Whole world">⟲</button><button id="zfull" aria-label="Full screen"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button><button id="zplane" aria-label="Airports"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/></svg></button></div></div>
     <div class="regionbar"><select id="regionSel" aria-label="Zoom to region"></select></div>
     <div class="legend" id="legend"></div>
   </section>
   <section id="v-list" class="view" hidden>
-    <div class="listtools"><input id="q" type="search" placeholder="Search countries" autocomplete="off">
-      <div class="chips" id="fchips"><button data-f="all">All</button><button data-f="been">Been</button><button data-f="want">Want to go</button><button data-f="lived">Lived</button><button data-f="none">Not yet</button></div></div>
+    <div class="listtools"><div class="qrow"><input id="q" type="search" placeholder="Search countries" autocomplete="off"><button class="btn sm ghost" id="photoImp"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>From photos</button></div>
+      <div class="chips" id="fchips"><button data-f="all">All</button><button data-f="been">Been</button><button data-f="want">Want to go</button><button data-f="lived">Lived</button><button data-f="drive">Drove through</button><button data-f="none">Not yet</button></div></div>
     <div id="clist"></div>
   </section>
   <section id="v-plans" class="view" hidden>

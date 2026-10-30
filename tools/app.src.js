@@ -10,7 +10,8 @@ const CORE=C.filter(c=>c.core).length;
 const MAPNAME={"Kosovo":"XK","N. Cyprus":"CY","Somaliland":"SO"};
 const CDN={d3:'vendor/d3.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
 const STATUS_L={idea:'Idea',booked:'Booked',done:'Done'};
-const KL={been:'Been',want:'Want to go',lived:'Lived'};
+const KL={been:'Been',want:'Want to go',lived:'Lived',drive:'Drove through'};
+const QL={been:'Been',want:'Want',lived:'Lived',drive:'Drove'};
 
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -37,6 +38,10 @@ x:'<path d="M6 6l12 12M18 6 6 18"/>',
 pencil:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
 clip:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6v16h12V5h-2"/>',
 share:'<path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/>',
+expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+shrink:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
+star:'<path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 plane:'<path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/>',
 };
 const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
@@ -69,8 +74,8 @@ function save(){
 }
 const cs=cc=>S.countries[cc]||{};
 const co=cc=>S.countries[cc]||(S.countries[cc]={});
-function setK(cc,k,v){const o=co(cc);o[k]=v;if(k==='lived'&&v)o.been=true;if(k==='been'&&!v)o.lived=false;save()}
-const tier=s=>s.lived?'lived':s.been?'been':s.want?'want':'';
+function setK(cc,k,v){const o=co(cc);setFlags(o,k,v);save()}
+const tier=s=>s.lived?'lived':s.been?'been':s.drive?'drive':s.want?'want':'';
 
 /* ---------- sheets (stacked full-screen panels, back button aware) ---------- */
 const stack=[];let backWaiters=[];
@@ -142,7 +147,7 @@ async function initMap(){
   gReg=mapG.append('g').attr('class','regs');gDisp=mapG.append('g').attr('class','disp');
   mapDots=mapG.selectAll('g.dotg').data(DOTS).join('g').attr('class','dotg').attr('transform',d=>`translate(${d.x},${d.y})`);
   mapDots.append('circle').attr('class','hit');mapDots.append('circle').attr('class','dm');
-  gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
+  gFlight=mapG.append('g').attr('class','flights');gList=mapG.append('g').attr('class','lmks');gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
   mapPaths.on('click',(e,d)=>{if(d.cc)openCountry(d.cc)});
   mapDots.on('click',(e,d)=>openCountry(d.cc));
   zoom=d3.zoom().scaleExtent([1,24]).translateExtent([[-200,-120],[MW+200,MH+120]]).on('zoom',e=>{mapG.attr('transform',e.transform);curK=e.transform.k;sizeDots()});
@@ -164,14 +169,14 @@ function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.m
 function sizeDots(){if(!mapDots)return;const u=pxPerUnit();
   // dots shrink away once you've zoomed in far enough to see the real shape
   mapDots.style('display',u>14?'none':null);
-  mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints()}
-const fillCls=cc=>{const t=tier(cs(cc));return t?(partial(cc)?' t-':' s-')+t:''};
+  mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists()}
+const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc));return t?(partial(cc)?' t-':' s-')+t:''};
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
-  mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintPoints();sizeDots();paintRegions();paintDisputed()}
-function counts(){let been=0,want=0,lived=0,terr=0;for(const c of C){if(c.disp)continue;const s=cs(c.cc);if(s.been){c.core?been++:terr++}if(s.want&&!s.been)want++;if(s.lived)lived++}return{been,want,lived,terr}}
+  mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
+function counts(){let been=0,want=0,lived=0,terr=0,drive=0;for(const c of C){if(c.disp)continue;const s=cs(c.cc);if(s.been){c.core?been++:terr++}if(s.want&&!s.been&&!s.drive)want++;if(s.lived)lived++;if(s.drive&&(c.core||S.settings.countTerr))drive++}const t=countTotals();return{been:t.been,total:t.total,want,lived,drive,terr:S.settings.countTerr?0:terr}}
 function renderMapView(){
   paintMap();const n=counts();
-  $('#legend').innerHTML=`<span class="lg"><i class="dot been"></i>Been <b>${n.been}</b></span><span class="lg"><i class="dot want"></i>Want to go <b>${n.want}</b></span><span class="lg"><i class="dot lived"></i>Lived <b>${n.lived}</b></span>${Object.keys(S.airports||{}).length?`<span class="lg">${ic('plane','lgp')}Airports <b>${Object.keys(S.airports).length}</b></span>`:''}`;
+  $('#legend').innerHTML=`<span class="lg"><i class="dot been"></i>Been <b>${n.been}</b></span><span class="lg"><i class="dot want"></i>Want to go <b>${n.want}</b></span><span class="lg"><i class="dot lived"></i>Lived <b>${n.lived}</b></span>${n.drive?`<span class="lg"><i class="dot drive"></i>Drove through <b>${n.drive}</b></span>`:''}${Object.keys(S.airports||{}).length?`<span class="lg">${ic('plane','lgp')}Airports <b>${Object.keys(S.airports).length}</b></span>`:''}`;
   const has=Object.keys(S.countries).length||S.plans.length;
   const old=Date.now()-(S.settings.lastBackup||0)>14*864e5&&Date.now()-(S.settings.nag||0)>7*864e5;
   $('#nag').innerHTML=has&&old?`<div class="nag"><span>${S.settings.lastBackup?'It’s been 2+ weeks since your last backup.':'You haven’t saved a backup yet.'}</span><button class="btn sm" data-nag="save">Save backup</button><button class="btn sm ghost" data-nag="later">Later</button></div>`:'';
@@ -179,28 +184,29 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
-  classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1'}],
-  sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d'},{been:'#d65314',want:'#c99a00',lived:'#c9184a'}],
-  ocean:['Ocean','',{been:'#2ec4d6',want:'#9be564',lived:'#6f8cff'},{been:'#00838f',want:'#4f9d2a',lived:'#3352d6'}],
-  forest:['Forest','',{been:'#7bc96f',want:'#e8c547',lived:'#c47ad6'},{been:'#3c8a3a',want:'#b58900',lived:'#8e44ad'}],
-  rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#56b4e9',want:'#f0c000',lived:'#e07bb4'},{been:'#0072b2',want:'#c99a00',lived:'#b0457f'}],
-  by:['Blue-yellow friendly','For tritanopia',{been:'#26c6da',want:'#ff8fb1',lived:'#b39ddb'},{been:'#00838f',want:'#d81b60',lived:'#5e35b1'}],
+  classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
+  sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
+  ocean:['Ocean','',{been:'#2ec4d6',want:'#9be564',lived:'#6f8cff',drive:'#ffb86b'},{been:'#00838f',want:'#4f9d2a',lived:'#3352d6',drive:'#d9822b'}],
+  forest:['Forest','',{been:'#7bc96f',want:'#e8c547',lived:'#c47ad6',drive:'#5ab0d6'},{been:'#3c8a3a',want:'#b58900',lived:'#8e44ad',drive:'#2f86ad'}],
+  rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#56b4e9',want:'#f0c000',lived:'#e07bb4',drive:'#e8743b'},{been:'#0072b2',want:'#c99a00',lived:'#b0457f',drive:'#d55e00'}],
+  by:['Blue-yellow friendly','For tritanopia',{been:'#26c6da',want:'#ff8fb1',lived:'#b39ddb',drive:'#ff7043'},{been:'#00838f',want:'#d81b60',lived:'#5e35b1',drive:'#d84315'}],
 };
 const lum=h=>{const n=parseInt(h.slice(1),16);const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(n>>16)+.7152*f((n>>8)&255)+.0722*f(n&255)};
 const inkFor=h=>lum(h)>.2?'#14171b':'#ffffff';
 const hsv2hex=(h,s,v)=>{h=((h%360)+360)%360;const f=n=>{const k=(n+h/60)%6;return v-v*s*Math.max(0,Math.min(k,4-k,1))};return'#'+[f(5),f(3),f(1)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('')};
 const hex2hsv=hex=>{const n=parseInt(hex.slice(1),16);const r=(n>>16)/255,g=((n>>8)&255)/255,b=(n&255)/255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d)h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return{h:(h*60+360)%360,s:mx?d/mx:0,v:mx}};
-const KEYS=['been','want','lived'];
+const KEYS=['been','want','lived','drive'];
 function customPal(c){
-  c=c||S.settings.palCustom||customFrom('classic');const v=c.v;
+  c=c||S.settings.palCustom||customFrom('classic');if(c.cols.length<KEYS.length){const q=hex2hsv(PALETTES.classic[2].drive);c.cols=c.cols.concat([{h:q.h,s:q.s}])}const v=c.v;
   const dark=c.cols.map(x=>hsv2hex(x.h,x.s,v)),light=c.cols.map(x=>hsv2hex(x.h,Math.min(1,x.s*1.08+.05),Math.max(.35,v*.72)));
-  const mk=cs=>({been:cs[0],want:cs[1],lived:cs[2]});
+  const mk=cs=>({been:cs[0],want:cs[1],lived:cs[2],drive:cs[3]});
   return['Custom','Your three colors',mk(dark),mk(light)];
 }
 function customFrom(k){const P=PALETTES[k]||PALETTES.classic;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
 const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.classic;
 function palVars(c){return KEYS.map(k=>`--${k}:${c[k]};--${k}-ink:${inkFor(c[k])};`).join('')}
-function applyPalette(){
+function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#c4532d')}
+function applyPalette(){applyHomeColor();
   let el=$('#palette');const k=S.settings.palette||'classic';
   if(k==='classic'){if(el)el.remove();return}
   if(!el){el=document.createElement('style');el.id='palette';document.head.appendChild(el)}
@@ -214,15 +220,15 @@ function paletteHTML(){
   <button class="pal${cur==='custom'?' on':''}" data-act="palcustom" aria-pressed="${cur==='custom'}">${sw(customPal())}<span class="pn">Custom</span><span class="pd">${S.settings.palCustom?'Tap to edit':'Pick your own three'}</span></button></div>`;
 }
 const HARMONY=[['complementary','Complementary',[180]],['split','Split',[150,210]],['triadic','Triadic',[120,240]],['square','Square',[90,180,270]],['analogous','Analogous',[-30,30]]];
-const SLOTS=[['Been','Countries, states and cities you’ve been to'],['Want to go','Places on your list'],['Lived','Places you’ve lived']];
+const SLOTS=[['Been','Countries, states and cities you’ve been to'],['Want to go','Places on your list'],['Lived','Places you’ve lived'],['Drove through','Places you only passed through']];
 function openColors(){
-  const c=JSON.parse(JSON.stringify(S.settings.palCustom||customFrom(S.settings.palette||'classic')));
+  const c=JSON.parse(JSON.stringify(S.settings.palCustom||customFrom(S.settings.palette||'classic')));if(c.cols.length<KEYS.length){const q=hex2hsv(PALETTES.classic[2].drive);c.cols.push({h:q.h,s:q.s})}
   let sel=0,target=1;const R=130;
   const o=sheet({
     render(el){
       const cur=c.cols[sel],offs=(HARMONY.find(x=>x[0]===c.mode)||HARMONY[3])[2];
       const sugg=offs.map(d=>({h:(cur.h+d+360)%360,s:cur.s}));
-      const others=[0,1,2].filter(i=>i!==sel);if(!others.includes(target))target=others[0];
+      const others=KEYS.map((_,i)=>i).filter(i=>i!==sel);if(!others.includes(target))target=others[0];
       const hexes=c.cols.map(x=>hsv2hex(x.h,x.s,c.v));
       const pos=(h,s)=>{const a=(h-90)*Math.PI/180;return[R+Math.cos(a)*s*R,R+Math.sin(a)*s*R]};const[hx,hy]=pos(cur.h,cur.s);
       el.innerHTML=`${shead('<span class="tt"><b>Custom colors</b></span>')}<div class="sbody">
@@ -248,7 +254,7 @@ function openColors(){
       this.sugg=sugg;this.others=others;
     },
     async click(e,t){if(!t)return;const a=t.dataset.act;
-      if(a==='slot'){sel=+t.dataset.i;target=[0,1,2].find(k=>k!==sel);this.refresh()}
+      if(a==='slot'){sel=+t.dataset.i;target=KEYS.map((_,i)=>i).find(k=>k!==sel);this.refresh()}
       else if(a==='mode'){c.mode=t.dataset.v;this.refresh()}
       else if(a==='sugg'){c.cols[target]=this.sugg[+t.dataset.i];target=this.others.find(i=>i!==target);this.refresh()}
       else if(a==='fill'){this.others.forEach((i,k)=>{c.cols[i]=this.sugg[k]||this.sugg[0]});this.refresh()}
@@ -258,18 +264,20 @@ function openColors(){
 
 /* states / provinces */
 let REGIDX=null;const REGGEO={};
-const RWORD={US:'States',MX:'States',BR:'States',AU:'States & territories',IN:'States',DE:'States',AT:'States',NG:'States',MY:'States',VE:'States',CA:'Provinces & territories',CN:'Provinces',AR:'Provinces',ZA:'Provinces',TR:'Provinces',IR:'Provinces',PK:'Provinces',TH:'Provinces',VN:'Provinces',KR:'Provinces',AF:'Provinces',NL:'Provinces',BE:'Provinces',JP:'Prefectures',ID:'Provinces',GB:'Nations & regions',ES:'Communities',IE:'Counties',SE:'Counties',NO:'Counties',CH:'Cantons'};
+const RWORD={US:'States',MX:'States',BR:'States',AU:'States & territories',IN:'States',DE:'States',AT:'States',NG:'States',MY:'States',VE:'States',CA:'Provinces & territories',CN:'Provinces',AR:'Provinces',ZA:'Provinces',TR:'Provinces',IR:'Provinces',PK:'Provinces',TH:'Provinces',VN:'Provinces',KR:'Provinces',AF:'Provinces',NL:'Provinces',BE:'Provinces',JP:'Prefectures',IQ:'Governorates',EG:'Governorates',JO:'Governorates',SY:'Governorates',LB:'Governorates',OM:'Governorates',YE:'Governorates',KW:'Governorates',BH:'Governorates',TN:'Governorates',ID:'Provinces',GB:'Nations & regions',ES:'Communities',IE:'Counties',SE:'Counties',NO:'Counties',CH:'Cantons'};
 const rword=cc=>RWORD[cc]||'Regions';
 async function regIndex(){if(REGIDX)return REGIDX;try{REGIDX=await(await fetch('regions/index.json')).json()}catch(e){REGIDX=null;return{}}return REGIDX}
 async function regGeo(cc){if(REGGEO[cc])return REGGEO[cc];await loadScript(CDN.topo);const t=await(await fetch(`regions/${cc}.json`)).json();return REGGEO[cc]=topojson.feature(t,t.objects.r).features}
 const rs=(cc,id)=>((cs(cc).regions)||{})[id]||{};
-function setFlags(x,k,v){x[k]=v;if(k==='lived'&&v)x.been=true;if(k==='been'&&!v)x.lived=false}
-function setR(cc,id,k,v){const o=co(cc),r=o.regions||(o.regions={}),x=r[id]||(r[id]={});setFlags(x,k,v);if(!x.been&&!x.want&&!x.lived)delete r[id];if(v)setK(cc,k,true);else save()}
+function setFlags(x,k,v){x[k]=v;if(k==='lived'&&v)x.been=true;if(k==='been'&&!v)x.lived=false;if(v&&(k==='been'||k==='lived'))x.drive=false;if(v&&k==='drive'){x.been=false;x.lived=false}}
+// Marking a state or city also marks its country, but never downgrades it (Drove through never replaces Been).
+function liftUp(cc,k,v){const c=cs(cc);if(!v||c[k]||(k==='drive'&&(c.been||c.lived))){save();return}setK(cc,k,true)}
+function setR(cc,id,k,v){const o=co(cc),r=o.regions||(o.regions={}),x=r[id]||(r[id]={});setFlags(x,k,v);if(!x.been&&!x.want&&!x.lived&&!x.drive)delete r[id];liftUp(cc,k,v)}
 /* cities */
 let CITIES=null;
 async function loadCities(){if(CITIES)return CITIES;try{CITIES=await(await fetch('cities.json')).json()}catch(e){return{}}return CITIES}
 const ct=(cc,n)=>((cs(cc).cities)||{})[n]||{};
-function setCity(cc,row,k,v){const o=co(cc),m=o.cities||(o.cities={}),x=m[row[0]]||(m[row[0]]={lat:row[1],lon:row[2],adm:row[3]||''});setFlags(x,k,v);if(!x.been&&!x.want&&!x.lived)delete m[row[0]];if(v)setK(cc,k,true);else save()}
+function setCity(cc,row,k,v){const o=co(cc),m=o.cities||(o.cities={}),x=m[row[0]]||(m[row[0]]={lat:row[1],lon:row[2],adm:row[3]||''});setFlags(x,k,v);if(!x.been&&!x.want&&!x.lived&&!x.drive)delete m[row[0]];liftUp(cc,k,v)}
 const partial=cc=>{const s=cs(cc);return!!(statesOn(cc)&&s.regions&&Object.keys(s.regions).length)||!!(s.cities&&Object.keys(s.cities).length)};
 /* airports */
 let AIRPORTS=null;
@@ -288,12 +296,12 @@ function openAirports(){
           const Q=q.toUpperCase(),ql=q.toLowerCase();const hits=A.filter(a=>a[0]===Q).concat(A.filter(a=>a[0]!==Q&&(a[0].startsWith(Q)||(a[2]||'').toLowerCase().includes(ql)||a[1].toLowerCase().includes(ql)||(BY[a[3]]?.name||'').toLowerCase()===ql))).slice(0,30);
           res=hits.length?`<h3 class="rhead"><span>Matches</span></h3><div class="card">${hits.map(apRow).join('')}</div>`:'<p class="empty">No airport with scheduled flights matches.</p>'}
         const tot=mine.reduce((s,[,x])=>s+x.n,0);
-        body.innerHTML=res+`<h3 class="rhead"><span>Your airports</span><small>${mine.length} airports · ${tot} visits</small></h3>${mine.length?`<div class="card">${mine.map(([c,x])=>apRow([c,x.name,x.city,x.cc,x.lat,x.lon])).join('')}</div>`:'<p class="empty">Search above and tap Log for each airport you’ve flown in, out of, or through. A small plane marks each one on the map.</p>'}
-        <label class="togrow"><input type="checkbox" id="apShow"${S.settings.planes===false?'':' checked'}> Show planes on the map</label>`;
+        const nf=flights().length;body.innerHTML=`<div class="btnrow" style="margin-bottom:8px"><button class="btn sm" data-fl="open">${ic('plane')} Flights · ${nf}</button><button class="btn sm ghost" data-fl="import">Import flights</button></div>`+res+`<h3 class="rhead"><span>Your airports</span><small>${mine.length} airports · ${tot} visits</small></h3>${mine.length?`<div class="card">${mine.map(([c,x])=>apRow([c,x.name,x.city,x.cc,x.lat,x.lon])).join('')}</div>`:'<p class="empty">Search above and tap Log for each airport you’ve flown in, out of, or through. A small plane marks each one on the map.</p>'}
+        <label class="togrow"><input type="checkbox" id="apShow"${S.settings.planes===false?'':' checked'}> Show planes and flight routes on the map</label>`;
         $('#apShow',el).onchange=e=>{S.settings.planes=e.target.checked;save()};
       };list();this.list=list;
     },
-    click(e){const b=e.target.closest('[data-ap]');if(!b)return;const code=b.dataset.ap;const x=(S.airports||{})[code];
+    click(e){const fl=e.target.closest('[data-fl]');if(fl){fl.dataset.fl==='open'?openFlights():openImportFlights(()=>this.list());return}const b=e.target.closest('[data-ap]');if(!b)return;const code=b.dataset.ap;const x=(S.airports||{})[code];
       const a=x?[code,x.name,x.city,x.cc,x.lat,x.lon]:(AIRPORTS||[]).find(r=>r[0]===code);if(!a)return;logAirport(a,+b.dataset.d);this.list()},
   });
   setTimeout(()=>{const i=$('#apQ',o.el);if(i&&matchMedia('(hover:hover)').matches)i.focus()},300);
@@ -306,15 +314,15 @@ function regionsBlockHTML(cc,sel){
   if(idx)h+=`<div class="strow"><span class="stname"><b>Show ${rword(cc).toLowerCase()}</b><small>${statesOn(cc)?idx.length+' on the map and below':'Off for this country'}</small></span>${switchHTML(statesOn(cc),`data-stcc="${cc}"`,'Show '+rword(cc).toLowerCase())}</div>`;
   if(idx&&statesOn(cc)){const n=idx.length,nb=idx.filter(([id])=>rs(cc,id).been).length,sr=sel&&idx.find(([id])=>id===sel);
     h+=`<div class="subrow"><h4 class="sub">${rword(cc)} <small>${nb} of ${n} been</small></h4></div>
-    <div class="cmini" id="cmini"><div class="loading">Loading map…</div></div>
-    <div class="rsel">${sr?`<b>${esc(sr[1])}</b><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${rs(cc,sr[0])[k]?' on':''}" data-rq="${sr[0]}" data-k="${k}">${k==='want'?'Want':KL[k]}</button>`).join('')}</span>`:`<span class="muted small">Tap a ${rword(cc).split(' ')[0].toLowerCase().replace(/s$/,'').replace(/ie$/,'y')} on the map to mark it, or use the list.</span>`}</div>
-    <details class="rlist"><summary>All ${n} ${rword(cc).toLowerCase()}</summary><div class="card">${idx.map(([id,name])=>{const x=rs(cc,id);return`<div class="crow"><span class="cmain"><span class="cname">${esc(name)}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-rq="${id}" data-k="${k}">${k==='want'?'Want':KL[k]}</button>`).join('')}</span></div>`}).join('')}</div></details>`}
+    <div class="cminiwrap"><div class="cmini" id="cmini"><div class="loading">Loading map…</div></div><button class="iconbtn sm mfs" data-act="regfs" aria-label="Full screen map">${ic('expand')}</button></div>
+    <div class="rsel">${sr?`<b>${esc(sr[1])}</b><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${rs(cc,sr[0])[k]?' on':''}" data-rq="${sr[0]}" data-k="${k}">${QL[k]}</button>`).join('')}</span>`:`<span class="muted small">Tap a ${rword(cc).split(' ')[0].toLowerCase().replace(/s$/,'').replace(/ie$/,'y')} on the map to mark it, or use the list.</span>`}</div>
+    <details class="rlist"><summary>All ${n} ${rword(cc).toLowerCase()}</summary><div class="card">${idx.map(([id,name])=>{const x=rs(cc,id);return`<div class="crow"><span class="cmain"><span class="cname">${esc(name)}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-rq="${id}" data-k="${k}">${QL[k]}</button>`).join('')}</span></div>`}).join('')}</div></details>`}
   const mine=Object.entries(cs(cc).cities||{});
   h+=`<h4 class="sub">Cities</h4>${mine.length?`<div class="card">${mine.map(([n,x])=>cityRow(cc,[n,x.lat,x.lon,x.adm])).join('')}</div>`:''}
   <div class="pickq0"><input id="cityQ" placeholder="Find a city in ${esc(BY[cc].name)}" autocomplete="off"></div><div id="cres"></div>`;
   return h;
 }
-function cityRow(cc,r){const x=ct(cc,r[0]);return`<div class="crow"><span class="cmain"><span class="cname">${esc(r[0])}${r[3]?`<small>${esc(r[3])}</small>`:''}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-cq="${esc(r[0])}" data-k="${k}">${k==='want'?'Want':KL[k]}</button>`).join('')}</span></div>`}
+function cityRow(cc,r){const x=ct(cc,r[0]);return`<div class="crow"><span class="cmain"><span class="cname">${esc(r[0])}${r[3]?`<small>${esc(r[3])}</small>`:''}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-cq="${esc(r[0])}" data-k="${k}">${QL[k]}</button>`).join('')}</span></div>`}
 async function cityResults(el,cc,q){
   const box=$('#cres',el);if(!box)return;const all=(await loadCities())[cc]||[];const ql=q.trim().toLowerCase();const mine=cs(cc).cities||{};
   const rows=(ql?all.filter(r=>r[0].toLowerCase().includes(ql)||(r[3]||'').toLowerCase().includes(ql)):all).filter(r=>!mine[r[0]]).slice(0,ql?25:8);
@@ -329,7 +337,7 @@ async function drawMini(box,cc,sel){
   const u=(b[1][0]-b[0][0])/600;
   const cities=Object.entries(cs(cc).cities||{}).map(([n,x])=>{const q=proj([x.lon,x.lat]);return q?`<circle class="city s-${tier(x)}" cx="${q[0]}" cy="${q[1]}" r="${5*u}"><title>${esc(n)}</title></circle>`:''}).join('');
   const planes=S.settings.planes===false?'':Object.entries(S.airports||{}).filter(([,x])=>x.cc===cc).map(([c,x])=>{const q=proj([x.lon,x.lat]);return q?`<g class="plane" transform="translate(${q[0]},${q[1]}) scale(${1.1*u})">${PLANE}<title>${esc(c)}</title></g>`:''}).join('');
-  box.innerHTML=`<svg class="mini" viewBox="${b[0][0]-6} ${b[0][1]-6} ${b[1][0]-b[0][0]+12} ${b[1][1]-b[0][1]+12}">${f.map(x=>{const t=tier(rs(cc,x.properties.id));return`<path class="rg${t?' s-'+t:''}${x.properties.id===sel?' sel':''}" data-rid="${x.properties.id}" d="${p(x)}"><title>${esc(x.properties.name)}</title></path>`}).join('')}${cities}${planes}</svg>`;
+  box.innerHTML=`<svg class="mini" viewBox="${b[0][0]-6} ${b[0][1]-6} ${b[1][0]-b[0][0]+12} ${b[1][1]-b[0][1]+12}"><g class="zg">${f.map(x=>{const t=tier(rs(cc,x.properties.id));return`<path class="rg${t?' s-'+t:''}${x.properties.id===sel?' sel':''}" data-rid="${x.properties.id}" d="${p(x)}"><title>${esc(x.properties.name)}</title></path>`}).join('')}${cities}${planes}</g></svg>`;
 }
 
 /* main map overlays */
@@ -350,13 +358,352 @@ function paintPoints(){
 }
 function sizePoints(){if(!gCity)return;const u=pxPerUnit();gCity.selectAll('circle').attr('r',4/u);gPlane.selectAll('g').attr('transform',d=>`translate(${d.x},${d.y}) scale(${1.15/u})`)}
 
+/* ---------- v4: visits & timeline, flights, tick-off lists, counting options, badges, share picture, photo import, packing list, full screen ---------- */
+const CONT={NA:'North America',CA:'North America',CB:'North America',SA:'South America',EU:'Europe',ME:'Asia',AF:'Africa',CAS:'Asia',SAS:'Asia',EAS:'Asia',SEA:'Asia',AU:'Oceania',OC:'Oceania',AN:'Antarctica'};
+const continentOf=cc=>cc==='EG'?'Africa':CONT[BY[cc]?.reg]||'';
+const CONTS=['Africa','Antarctica','Asia','Europe','North America','Oceania','South America'];
+const dParse=s=>new Date(s+'T12:00');
+const dayDiff=(a,b)=>Math.round((dParse(b)-dParse(a))/864e5);
+const fmtDay=d=>dParse(d).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+const localISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtN=n=>Math.round(n).toLocaleString();
+const hav=(la1,lo1,la2,lo2)=>{const r=Math.PI/180,a=Math.sin((la2-la1)*r/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin((lo2-lo1)*r/2)**2;return 12742*Math.asin(Math.min(1,Math.sqrt(a)))};
+const realC=()=>C.filter(c=>!c.disp);
+
+/* ---- counting options ---- */
+const UKN=[['England',x=>x.startsWith('GB-ENG')],['Scotland',x=>x==='GB-SCOTLAND'],['Wales',x=>x==='GB-WALES'],['Northern Ireland',x=>x==='GB-NORTHERN-IRELAND']];
+function ukNations(){const r=cs('GB').regions||{};return UKN.filter(([,f])=>Object.entries(r).some(([id,x])=>f(id)&&x.been)).map(([n])=>n)}
+function countTotals(){const s=S.settings,set=realC().filter(c=>c.core||s.countTerr);let been=set.filter(c=>cs(c.cc).been||(s.countDrive&&cs(c.cc).drive)).length,total=set.length;
+  if(s.ukSplit){total+=3;if(cs('GB').been){const n=ukNations().length;been+=Math.max(1,n)-1}}
+  return{been,total}}
+
+/* ---- centroids (for stats, photo import, share picture) ---- */
+let CENT=null;
+function centroids(){if(CENT)return CENT;if(!PATHD.length)return{};CENT={};
+  for(const p of PATHD){if(!p.cc||CENT[p.cc])continue;const g=p.f.geometry;let best=null,ba=-1;const polys=g.type==='MultiPolygon'?g.coordinates:[g.coordinates];
+    for(const poly of polys){const a=d3.geoArea({type:'Polygon',coordinates:poly});if(a>ba){ba=a;best=poly}}if(best){const[lo,la]=d3.geoCentroid({type:'Polygon',coordinates:best});CENT[p.cc]=[la,lo]}}
+  for(const[cc,lo,la]of[['TV',179.2,-8.5],['TK',-171.8,-9.2],['GI',-5.35,36.14],['CC',96.87,-12.16],['CX',105.69,-10.45]])if(!CENT[cc])CENT[cc]=[la,lo];
+  return CENT}
+let PBOX=null;
+function countryAt(lon,lat){if(!PATHD.length)return'';if(!PBOX)PBOX=PATHD.map(p=>d3.geoBounds(p.f));
+  for(let i=0;i<PATHD.length;i++){const p=PATHD[i],[[x0,y0],[x1,y1]]=PBOX[i];if(!p.cc)continue;if(lat<y0-.1||lat>y1+.1)continue;if(x0<=x1&&(lon<x0-.1||lon>x1+.1))continue;if(d3.geoContains(p.f,[lon,lat]))return p.cc}
+  // On a coast or a small island the simplified map can miss the point: use the nearest known city or airport.
+  let best='',bd=50;if(CITIES)for(const[cc,rows]of Object.entries(CITIES))for(const c of rows){const d=hav(lat,lon,c[1],c[2]);if(d<bd){bd=d;best=cc}}
+  if(!best&&AIRPORTS){bd=30;for(const a of AIRPORTS){const d=hav(lat,lon,a[4],a[5]);if(d<bd){bd=d;best=a[3]}}}
+  if(best&&BY[best])return best;
+  bd=60;const ce=centroids();for(const[cc,[la,lo]]of Object.entries(ce)){const d=hav(lat,lon,la,lo);if(d<bd){bd=d;best=cc}}return best}
+
+/* ---- visits ---- */
+const visitsOf=cc=>cs(cc).visits||[];
+const visitDays=v=>v.start?Math.max(1,(v.end&&v.end>=v.start?dayDiff(v.start,v.end):0)+1):0;
+const sortVisits=a=>a.sort((x,y)=>(x.start||'9999').localeCompare(y.start||'9999'));
+function addVisit(cc,v){const o=co(cc);(o.visits||(o.visits=[])).push(Object.assign({id:uid(),start:'',end:'',note:''},v));sortVisits(o.visits);if(!o.been)setK(cc,'been',true);else save()}
+const overlaps=(cc,s,e)=>visitsOf(cc).some(v=>v.start&&!(e<v.start||s>(v.end||v.start)));
+function visitsHTML(cc){const vs=visitsOf(cc),s=cs(cc),days=vs.reduce((a,v)=>a+visitDays(v),0);
+  return`<div class="subrow"><h4 class="sub">Visits ${vs.length?`<small>${plural(vs.length,'visit')}${days?' · '+plural(days,'day'):''}</small>`:''}</h4><span class="btns"><button class="btn sm" data-act="addvisit">${ic('plus')} Visit</button></span></div>
+  ${vs.map(v=>`<div class="visit" data-vid="${v.id}"><div class="grid2"><label class="fld"><span>From</span><input type="date" data-vf="start" value="${v.start||''}"></label><label class="fld"><span>To</span><input type="date" data-vf="end" value="${v.end||''}"></label></div><div class="vrow"><input data-vf="note" value="${esc(v.note||'')}" placeholder="Note: where, who with"><button class="iconbtn sm" data-act="delvisit" data-id="${v.id}" aria-label="Remove visit">${ic('trash')}</button></div></div>`).join('')}
+  ${vs.length?'':'<p class="muted small">Add each trip with its dates. Visits build your timeline and your stats.</p>'}
+  ${s.years?`<p class="tiny muted">Earlier note: ${esc(s.years)}</p>`:''}`}
+function visitEvent(e,cc,refresh){const f=e.target.dataset.vf;if(!f)return false;const box=e.target.closest('[data-vid]');const v=visitsOf(cc).find(x=>x.id===box.dataset.vid);if(!v)return true;
+  v[f]=e.target.value;if(f==='start'&&v.start&&(!v.end||v.end<v.start)&&e.type==='change'){v.end=v.end&&v.end>=v.start?v.end:v.start}
+  if(f==='end'&&v.start&&v.end&&v.end<v.start)v.end=v.start;
+  if(e.type==='change'&&f!=='note'){sortVisits(visitsOf(cc));save();refresh()}else save();return true}
+function allVisits(){const out=[];for(const c of realC())for(const v of visitsOf(c.cc))if(v.start)out.push({cc:c.cc,...v,days:visitDays(v)});return out.sort((a,b)=>a.start.localeCompare(b.start))}
+function firstYear(cc){const v=visitsOf(cc).find(x=>x.start);return v?+v.start.slice(0,4):0}
+
+/* ---- timeline ---- */
+function openTimeline(){
+  let year=0,timer=0;
+  const vs=allVisits(),years=[...new Set(vs.map(v=>+v.start.slice(0,4)))].sort((a,b)=>b-a);
+  const fl=(S.flights||[]).filter(f=>f.date);
+  const o=sheet({
+    render(el){
+      const home=S.settings.home;const minY=years.length?Math.min(...years):0,maxY=years.length?Math.max(...years):0;if(!year)year=maxY;
+      const undated=realC().filter(c=>cs(c.cc).been&&!visitsOf(c.cc).some(v=>v.start));
+      const seen=new Set();const firsts={};vs.forEach(v=>{if(!seen.has(v.cc)){seen.add(v.cc);firsts[v.cc]=+v.start.slice(0,4)}});
+      el.innerHTML=`${shead('<span class="tt"><b>Timeline</b><small>Your visits by year</small></span>')}<div class="sbody">
+      ${years.length?`<div class="cmpmap" id="tlMap"><div class="loading">Loading map…</div></div>
+      <div class="tlctl"><button class="btn sm" data-act="play">${ic('play')} Play</button><input type="range" id="tlYear" min="${minY}" max="${maxY}" value="${year}" aria-label="Year"><b id="tlLab"></b></div>`:''}
+      ${years.map(y=>{const yv=vs.filter(v=>+v.start.slice(0,4)===y),ccs=new Set(yv.map(v=>v.cc)),nw=[...ccs].filter(c=>firsts[c]===y).length,days=yv.filter(v=>v.cc!==home).reduce((a,v)=>a+v.days,0),nf=fl.filter(f=>+f.date.slice(0,4)===y).length;
+        return`<h3 class="rhead"><span>${y}</span><small>${plural(ccs.size,'country')}${nw?` · ${nw} new`:''}${days?` · ${plural(days,'day')} away`:''}${nf?` · ${plural(nf,'flight')}`:''}</small></h3><div class="card">${yv.map(v=>`<button class="tlrow" data-open="${v.cc}"><span class="flag">${flag(v.cc)}</span><span class="ptxt"><span class="pt">${esc(BY[v.cc].name)}${firsts[v.cc]===y&&yv.find(x=>x.cc===v.cc)===v?' <span class="newtag">first visit</span>':''}</span><span class="pm">${fmtDay(v.start)}${v.end&&v.end!==v.start?' – '+fmtDay(v.end):''} · ${plural(v.days,'day')}${v.note?' · '+esc(v.note):''}</span></span></button>`).join('')}</div>`}).join('')}
+      ${undated.length?`<h3 class="rhead"><span>No dates yet</span><small>${undated.length}</small></h3><p class="small muted">Open a country and tap + Visit to put it on the timeline.</p><div class="chips2">${undated.map(c=>`<button class="wchip" data-open="${c.cc}">${flag(c.cc)} ${esc(c.name)}</button>`).join('')}</div>`:''}
+      ${!years.length&&!undated.length?'<p class="empty">Mark countries and add visits with dates to build your timeline.</p>':''}</div>`;
+      if(years.length)this.drawMap(firsts,minY);
+    },
+    async drawMap(firsts,minY){const box=$('#tlMap',this.el);try{await loadGeo()}catch(e){box.innerHTML='<p class="muted small pad">The map needs internet the first time.</p>';return}
+      box.innerHTML=`<svg viewBox="0 0 ${MW} ${MH}" class="map small"><path class="sphere" d="${geoPath({type:'Sphere'})}"/>${PATHD.map(p=>`<path class="c" data-y="${firsts[p.cc]||''}" d="${p.d}"/>`).join('')}</svg>`;
+      const paint=()=>{$$('path[data-y]',box).forEach(p=>{const y=+p.dataset.y;p.setAttribute('class','c'+(y&&y<=year?(y===year?' s-lived':' s-been'):''))});
+        const n=Object.values(firsts).filter(y=>y<=year).length;$('#tlLab',this.el).textContent=`${year}: ${plural(n,'country')}`};
+      paint();this.paint=paint;
+      $('#tlYear',this.el).oninput=e=>{year=+e.target.value;clearInterval(timer);paint()}},
+    click(e,t){const op=e.target.closest('[data-open]');if(op){openCountry(op.dataset.open);return}
+      if(t&&t.dataset.act==='play'){clearInterval(timer);const r=$('#tlYear',this.el);year=+r.min;r.value=year;this.paint&&this.paint();
+        timer=setInterval(()=>{if(year>=+r.max||!this.el.isConnected){clearInterval(timer);return}year++;r.value=year;this.paint()},900)}},
+  });
+}
+
+/* ---- flights ---- */
+let APX=null;
+async function apIndex(){if(APX)return APX;const A=await loadAirports();APX={};A.forEach(a=>APX[a[0]]=a);return APX}
+const flights=()=>S.flights||(S.flights=[]);
+function flightKm(f){return f.km||(f.km=Math.round(hav(f.fl[0],f.fl[1],f.tl[0],f.tl[1])))}
+function addFlight(a,b,date,airline,num,silent){const f={id:uid(),date:date||'',from:a[0],to:b[0],fl:[a[4],a[5]],tl:[b[4],b[5]],fcc:a[3],tcc:b[3],airline:airline||'',num:num||''};flightKm(f);flights().push(f);logAirport(a,1);logAirport(b,1);if(!silent)save();return f}
+function removeFlight(id){const f=flights().find(x=>x.id===id);if(!f)return;S.flights=flights().filter(x=>x!==f);for(const c of[f.from,f.to]){const x=(S.airports||{})[c];if(x)logAirport([c,x.name,x.city,x.cc,x.lat,x.lon],-1)}save()}
+function flightStats(){const F=flights(),km=F.reduce((a,f)=>a+flightKm(f),0);const ap={},rt={},al={};
+  for(const f of F){ap[f.from]=(ap[f.from]||0)+1;ap[f.to]=(ap[f.to]||0)+1;const k=[f.from,f.to].sort().join('–');rt[k]=(rt[k]||0)+1;if(f.airline)al[f.airline]=(al[f.airline]||0)+1}
+  const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);const longest=F.slice().sort((a,b)=>flightKm(b)-flightKm(a))[0];
+  return{n:F.length,km,ap:top(ap,5),rt:top(rt,5),al:top(al,5),longest}}
+function apPicker(id,label){return`<label class="fld"><span>${label}</span><input id="${id}" placeholder="Code or city (e.g. CLT)" autocomplete="off" autocapitalize="characters"></label><div class="appick" id="${id}R"></div>`}
+function openFlights(){
+  const pick={};
+  const o=sheet({
+    render(el){const st=flightStats(),F=flights().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+      el.innerHTML=`${shead('<span class="tt"><b>Flights</b><small>Every flight, with its route on the map</small></span>',`<button class="btn sm ghost" data-act="import">Import</button>`)}<div class="sbody">
+      ${st.n?`<div class="tiles"><div class="tile"><b>${st.n}</b><span>flights</span></div><div class="tile"><b>${fmtN(st.km)}</b><span>km flown</span></div><div class="tile"><b>${fmtN(st.km*0.621371)}</b><span>miles</span></div></div>`:''}
+      <h4 class="sub">Add a flight</h4><div class="card pad">${apPicker('flFrom','From')}${apPicker('flTo','To')}
+      <div class="grid2"><label class="fld"><span>Date</span><input type="date" id="flDate"></label><label class="fld"><span>Airline (optional)</span><input id="flAir" placeholder="e.g. Delta"></label></div>
+      <label class="fld"><span>Flight number (optional)</span><input id="flNum" placeholder="e.g. DL 123"></label>
+      <button class="btn wide" data-act="addfl">${ic('plane')} Add flight</button><p class="tiny muted">Each flight also adds a visit to both airports.</p></div>
+      <h3 class="rhead"><span>Your flights</span><small>${st.n}</small></h3>
+      ${F.length?`<div class="card">${F.map(f=>`<div class="aprow"><span class="ptxt"><span class="pt">${esc(f.from)} → ${esc(f.to)} <small class="muted">${fmtN(flightKm(f))} km</small></span><span class="pm">${f.date?fmtD(f.date):'No date'}${f.airline?' · '+esc(f.airline):''}${f.num?' '+esc(f.num):''}</span></span><button class="iconbtn sm" data-delfl="${f.id}" aria-label="Remove flight">${ic('trash')}</button></div>`).join('')}</div>`:'<p class="empty">No flights yet. Add one above, or import a list from Flighty, OpenFlights or myFlightradar24.</p>'}</div>`;
+      for(const k of['flFrom','flTo']){const inp=$('#'+k,el);if(pick[k])inp.value=`${pick[k][0]} · ${pick[k][2]||pick[k][1]}`;
+        inp.oninput=async()=>{pick[k]=null;const q=inp.value.trim();const box=$('#'+k+'R',el);if(!q){box.innerHTML='';return}const A=await loadAirports(),Q=q.toUpperCase(),ql=q.toLowerCase();
+          const hits=A.filter(a=>a[0]===Q).concat(A.filter(a=>a[0]!==Q&&(a[0].startsWith(Q)||(a[2]||'').toLowerCase().includes(ql)||a[1].toLowerCase().includes(ql)))).slice(0,6);
+          box.innerHTML=hits.map(a=>`<button class="appk" data-pk="${k}" data-code="${a[0]}"><b>${a[0]}</b> ${esc(a[2]||'')} <small>${flag(a[3])} ${esc(a[1])}</small></button>`).join('')||'<p class="tiny muted">No airport with scheduled flights matches.</p>'}}
+    },
+    async click(e,t){const pk=e.target.closest('[data-pk]');if(pk){const X=await apIndex();const a=X[pk.dataset.code];pick[pk.dataset.pk]=a;const inp=$('#'+pk.dataset.pk,this.el);inp.value=`${a[0]} · ${a[2]||a[1]}`;$('#'+pk.dataset.pk+'R',this.el).innerHTML='';return}
+      const d=e.target.closest('[data-delfl]');if(d){if(confirm('Remove this flight?')){removeFlight(d.dataset.delfl);this.refresh()}return}
+      if(!t)return;
+      if(t.dataset.act==='import'){openImportFlights(()=>this.refresh());return}
+      if(t.dataset.act==='addfl'){const X=await apIndex();const res=k=>pick[k]||X[($('#'+k,this.el).value.trim().toUpperCase().match(/^[A-Z]{3}/)||[''])[0]];const a=res('flFrom'),b=res('flTo');
+        if(!a||!b){toast('Pick both airports from the list');return}if(a[0]===b[0]){toast('From and To are the same airport');return}
+        addFlight(a,b,$('#flDate',this.el).value,$('#flAir',this.el).value.trim(),$('#flNum',this.el).value.trim());pick.flFrom=pick.flTo=null;toast(`${a[0]} → ${b[0]} added`);this.refresh()}},
+  });
+}
+function parseCSV(t){const first=t.split(/\r?\n/)[0]||'';const del=[',',';','\t'].sort((a,b)=>first.split(b).length-first.split(a).length)[0];
+  const rows=[];let row=[],f='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}
+    else if(ch==='"')q=true;else if(ch===del){row.push(f);f=''}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''}else f+=ch}
+  if(f||row.length){row.push(f);rows.push(row)}return rows.filter(r=>r.some(x=>x.trim()))}
+function csvDate(s){s=(s||'').trim();let m=s.match(/(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;const d=new Date(s);return isNaN(d)?'':localISO(d)}
+function readFlightsCSV(text,X){
+  const rows=parseCSV(text.replace(/^﻿/,''));if(rows.length<2)return{err:'The file has no rows.'};
+  const H=rows[0].map(h=>h.trim().toLowerCase());const col=re=>H.findIndex(h=>re.test(h));
+  const ci={date:col(/date/),from:col(/^(from|origin|orig|dep(arture)?)( airport| iata| code)?$|^from[ _]|departure airport/),to:col(/^(to|dest(ination)?|arr(ival)?)( airport| iata| code)?$|^to[ _]|arrival airport/),air:col(/airline|carrier/),num:col(/^flight( ?(number|no|#|num))?$|flight_number|^flight$/)};
+  if(ci.from<0||ci.to<0)return{err:'Couldn’t find From and To columns. The first row needs headers like “From” and “To”.'};
+  const code=s=>{s=(s||'').trim();if(/^[A-Z]{3}$/.test(s))return X[s]?s:'';let m=s.match(/\(([A-Z]{3})\s*\/\s*[A-Z]{4}\)/)||s.match(/\(([A-Z]{3})\)/);if(m&&X[m[1]])return m[1];m=(s.match(/\b[A-Z]{3}\b/g)||[]).find(c=>X[c]);return m||''};
+  const have=new Set(flights().map(f=>[f.date,f.from,f.to].join('|')));const out=[];let skipped=0,dup=0;
+  for(const r of rows.slice(1)){const a=code(r[ci.from]),b=code(r[ci.to]);if(!a||!b||a===b){skipped++;continue}const date=ci.date>=0?csvDate(r[ci.date]):'';const k=[date,a,b].join('|');if(have.has(k)){dup++;continue}have.add(k);
+    out.push({a,b,date,air:ci.air>=0?(r[ci.air]||'').replace(/\s*\([A-Z0-9]{2,3}\/[A-Z0-9]{3,4}\)\s*$/,'').trim():'',num:ci.num>=0?(r[ci.num]||'').trim():''})}
+  return{out,skipped,dup}}
+function openImportFlights(after){
+  let res=null;
+  sheet({
+    render(el){el.innerHTML=`${shead('<span class="tt"><b>Import flights</b></span>')}<div class="sbody">
+      <p class="small">Pick a CSV file exported from Flighty, OpenFlights or myFlightradar24, or any spreadsheet with <b>From</b> and <b>To</b> columns (airport codes like CLT) and a <b>Date</b> column.</p>
+      <label class="btn">${ic('clip')} Choose CSV file<input type="file" accept=".csv,text/csv,text/plain" hidden id="flCsv"></label>
+      <div id="flRes">${res?(res.err?`<p class="muted">${esc(res.err)}</p>`:`<div class="card pad" style="margin-top:12px"><b>${plural(res.out.length,'new flight')}</b><p class="small muted">${res.dup?plural(res.dup,'flight')+' already logged · ':''}${res.skipped?plural(res.skipped,'row')+' skipped (airport not found or missing)':''}</p>
+        ${res.out.slice(0,8).map(f=>`<div class="small">${f.date||'No date'} · ${f.a} → ${f.b}${f.air?' · '+esc(f.air):''}</div>`).join('')}${res.out.length>8?`<div class="small muted">and ${res.out.length-8} more</div>`:''}
+        ${res.out.length?`<button class="btn wide" data-act="add" style="margin-top:10px">Add ${plural(res.out.length,'flight')}</button>`:''}</div>`):''}</div>
+      <p class="tiny muted">Only airports with scheduled flights are recognized. Nothing leaves your phone.</p></div>`},
+    async change(e){if(e.target.id!=='flCsv'||!e.target.files[0])return;const X=await apIndex();res=readFlightsCSV(await e.target.files[0].text(),X);this.refresh()},
+    async click(e,t){if(t&&t.dataset.act==='add'&&res&&res.out){const X=await apIndex();for(const f of res.out)addFlight(X[f.a],X[f.b],f.date,f.air,f.num,true);save();toast(`Added ${plural(res.out.length,'flight')}`);await back();after&&after()}},
+  });
+}
+let gFlight;
+function paintFlights(){if(!gFlight)return;const on=S.settings.planes!==false;const seen=new Set(),data=[];
+  if(on)for(const f of flights()){const k=[f.from,f.to].sort().join('|');if(seen.has(k))continue;seen.add(k);data.push({k,f})}
+  gFlight.selectAll('path').data(data,d=>d.k).join('path').attr('class','farc').attr('d',d=>geoPath({type:'LineString',coordinates:[[d.f.fl[1],d.f.fl[0]],[d.f.tl[1],d.f.tl[0]]]}))}
+
+/* ---- tick-off lists ---- */
+let LISTS=null;
+async function loadLists(){if(LISTS)return LISTS;LISTS=await(await fetch('lists.json')).json();return LISTS}
+const ticks=id=>{const L=S.lists||(S.lists={});return L[id]||(L[id]={})};
+function tickItem(lid,it,on){const t=ticks(lid);if(on){t[it[0]]=today();if(it[2]&&BY[it[2]]&&!cs(it[2]).been){setK(it[2],'been',true);return}}else delete t[it[0]];save()}
+const listOnMap=lid=>!!(S.settings.listMap||{})[lid];
+async function listsCardHTML(){let L;try{L=await loadLists()}catch(e){return'<p class="muted small">Lists need internet the first time.</p>'}
+  return`<div class="card">${L.map(l=>{const d=Object.keys(ticks(l.id)).length,n=l.items.length;return`<button class="lrow" data-list="${l.id}"><span class="ptxt"><span class="pt">${esc(l.name)}</span><span class="pm">${d} of ${n} · ${Math.round(d/n*100)}%</span><span class="bar"><i style="width:${d/n*100}%"></i></span></span>${ic('chev','chev')}</button>`}).join('')}</div>`}
+function openList(lid,q0){
+  let q=q0||'',f='all';
+  sheet({
+    async render(el){const L=await loadLists(),l=L.find(x=>x.id===lid),t=ticks(lid);const done=Object.keys(t).length;
+      if(!el.innerHTML){el.innerHTML=`${shead(`<span class="tt"><b>${esc(l.name)}</b><small id="lsum"></small></span>`)}<div class="pickq"><input id="lq" placeholder="Search ${esc(l.name)}" autocomplete="off" value="${esc(q)}"></div><div class="sbody" id="lbody"></div>`;
+        $('#lq',el).oninput=e=>{q=e.target.value;this.refresh()}}
+      $('#lsum',el).textContent=`${done} of ${l.items.length} · ${l.desc}`;
+      const ql=q.trim().toLowerCase();const items=l.items.filter(it=>(!ql||it[1].toLowerCase().includes(ql)||(BY[it[2]]?.name||'').toLowerCase().includes(ql))&&(f==='all'||(f==='done')===!!t[it[0]]));
+      const groups={};items.forEach(it=>(groups[it[2]]||(groups[it[2]]=[])).push(it));
+      const keys=Object.keys(groups).sort((a,b)=>(BY[a]?.name||a).localeCompare(BY[b]?.name||b));const open=ql||keys.length<=4||lid==='wonders';
+      const CAT={c:'cultural',n:'natural',m:'mixed'};
+      $('#lbody',el).innerHTML=`<div class="chips" style="margin:0 0 8px">${[['all','All'],['done','Done'],['todo','To do']].map(([k,n])=>`<button class="${f===k?'on':''}" data-lf="${k}">${n}</button>`).join('')}</div>
+        <div class="strow top"><span class="stname"><b>Show on the map</b><small>Ticked ones in your Been color; the rest appear as outlines when you zoom in</small></span>${switchHTML(listOnMap(lid),'data-act="lmap"','Show on the map')}</div>
+        ${keys.slice(0,ql?400:999).map(k=>{const g=groups[k],gd=g.filter(it=>t[it[0]]).length;return`<details class="lgrp"${open?' open':''}><summary><span class="flag">${BY[k]?flag(k):''}</span><b>${esc(BY[k]?.name||k)}</b><small>${gd}/${g.length}</small></summary><div class="card">${g.map(it=>`<label class="litem"><input type="checkbox" data-it="${it[0]}"${t[it[0]]?' checked':''}><span class="ptxt"><span class="pt">${esc(it[1])}</span>${it[5]?`<span class="pm">${esc(CAT[it[5]]||it[5])}${t[it[0]]?' · ticked '+fmtD(t[it[0]]):''}</span>`:t[it[0]]?`<span class="pm">ticked ${fmtD(t[it[0]])}</span>`:''}</span></label>`).join('')}</div></details>`}).join('')||'<p class="empty">Nothing matches.</p>'}`;
+    },
+    async change(e){const id=e.target.dataset.it;if(!id)return;const L=await loadLists(),it=L.find(x=>x.id===lid).items.find(x=>x[0]===id);tickItem(lid,it,e.target.checked);if(e.target.checked)toast('Ticked'+(it[2]&&BY[it[2]]?` · ${BY[it[2]].name} marked Been`:''));this.refresh()},
+    click(e,t){const lf=e.target.closest('[data-lf]');if(lf){f=lf.dataset.lf;this.refresh();return}
+      if(t&&t.dataset.act==='lmap'){const m=S.settings.listMap||(S.settings.listMap={});m[lid]=!m[lid];save();this.refresh()}},
+  });
+}
+let gList;
+async function paintLists(){if(!gList||!mapReady)return;const on=Object.entries(S.settings.listMap||{}).filter(([,v])=>v).map(([k])=>k);
+  if(!on.length){gList.selectAll('path').remove();return}let L;try{L=await loadLists()}catch(e){return}const P=geoPath.projection(),data=[];
+  for(const l of L)if(on.includes(l.id)){const t=ticks(l.id);for(const it of l.items){const q=P([it[4],it[3]]);if(q)data.push({k:l.id+it[0],lid:l.id,name:it[1],x:q[0],y:q[1],done:!!t[it[0]]})}}
+  gList.selectAll('path').data(data,d=>d.k).join(en=>en.append('path').attr('d','M0,-5L4.5,0L0,5L-4.5,0Z').on('click',(e,d)=>openList(d.lid,d.name)).append('title')).attr('class',d=>'lmk'+(d.done?' done':'')).select('title').text(d=>d.name);
+  sizeLists()}
+function sizeLists(){if(!gList||!mapReady)return;const u=pxPerUnit(),close=u>2.2;gList.selectAll('path').style('display',d=>d.done||close?null:'none').attr('transform',d=>`translate(${d.x},${d.y}) scale(${(d.done?1.15:.85)/u})`)}
+
+/* ---- badges ---- */
+function beenCCs(){return realC().filter(c=>cs(c.cc).been).map(c=>c.cc)}
+function badgeList(){const n=countTotals(),b=beenCCs(),conts=new Set(b.map(continentOf).filter(c=>c&&c!=='Antarctica')),fs=flightStats();
+  const us=Object.entries(cs('US').regions||{}).filter(([id,x])=>x.been&&id!=='US-DC').length;
+  const tick=l=>Object.keys((S.lists||{})[l]||{}).length;const home=S.settings.home;
+  const abroad=realC().some(c=>cs(c.cc).lived&&c.cc!==home)&&!!home;
+  const ce=centroids();const hem=new Set();b.forEach(cc=>{const p=ce[cc];if(!p)return;hem.add(p[0]>=0?'N':'S');hem.add(p[1]>=0?'E':'W')});
+  const yrs=new Set(allVisits().map(v=>v.start.slice(0,4))).size;
+  return[['First stamp','Mark your first country',n.been,1],['Explorer','10 countries',n.been,10],['Globetrotter','25 countries',n.been,25],['Nomad','50 countries',n.been,50],['Centurion','100 countries',n.been,100],
+    ['Six continents','Every inhabited continent',conts.size,6],['Polar','Antarctica',cs('AQ').been?1:0,1],['Four corners','North, south, east and west of the equator and meridian',hem.size,4],
+    ['Road tripper','10 US states',us,10],['All 50','Every US state',us,50],['Expat','Live in a country other than home'+(home?'':' (set home in Settings)'),abroad?1:0,1],
+    ['Takeoff','Your first flight',fs.n,1],['Frequent flyer','50 flights',fs.n,50],['Around the world','Fly 40,075 km',fs.km,40075],['To the Moon','Fly 384,400 km',fs.km,384400],
+    ['Heritage hunter','10 UNESCO sites',tick('unesco'),10],['Wonder seeker','All New 7 Wonders',Math.min(7,Object.keys((S.lists||{}).wonders||{}).filter(k=>k!=='W8').length),7],['Park ranger','10 US national parks',tick('usparks'),10],['Capital collector','25 capitals',tick('capitals'),25],
+    ['Time traveler','Dated visits in 5 different years',yrs,5],['Planner','Make 5 plans',S.plans.length,5]]}
+
+/* ---- home country ---- */
+const HOMECOL=['#c4532d','#0f766e','#7c3aed','#be185d','#1d4ed8','#4b5563'];
+function homeHTML(){const h=S.settings.home;return`<div class="strow top"><span class="stname"><b>Home country</b><small>${h?flag(h)+' '+esc(BY[h].name)+' · shown in its own color':'Not set. Used for “farthest from home”, days away and the Expat badge.'}</small></span><button class="btn sm ghost" data-act="sethome">${h?'Change':'Set'}</button></div>
+  ${h?`<div class="homecols">${HOMECOL.map(c=>`<button class="hc${(S.settings.homeColor||HOMECOL[0])===c?' on':''}" data-hc="${c}" style="background:${c}" aria-label="Home color"></button>`).join('')}<button class="btn sm ghost" data-act="clearhome">Clear</button></div>`:''}`}
+
+/* ---- packing list ---- */
+const PACK_DEFAULT=['Passport','Phone charger','Plug adapter','Medications','Toiletries','Travel insurance details','Copies of bookings'];
+const packList=()=>S.settings.packing&&S.settings.packing.length?S.settings.packing:PACK_DEFAULT;
+
+/* ---- share picture ---- */
+async function makeSharePicture(kind){
+  await loadGeo();try{await document.fonts.load('700 60px Fraunces')}catch(e){}
+  const W=1080,H=kind==='story'?1920:1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
+  const v=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const col={bg:v('--bg'),card:v('--card'),ink:v('--ink'),muted:v('--muted'),land:v('--land'),sea:v('--sea'),line:v('--line'),been:v('--been'),want:v('--want'),lived:v('--lived'),drive:v('--drive'),home:S.settings.homeColor||HOMECOL[0]};
+  const mix=(a,b,t)=>{const p=h=>{h=h.replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};try{const A=p(a),B=p(b);return'#'+A.map((x,i)=>Math.round(x*t+B[i]*(1-t)).toString(16).padStart(2,'0')).join('')}catch(e){return a}};
+  const serif='Fraunces, Georgia, serif',sans='-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',emo='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  ctx.fillStyle=col.bg;ctx.fillRect(0,0,W,H);
+  const story=kind==='story',ty0=story?230:120;
+  ctx.fillStyle=col.ink;ctx.font=`700 ${story?76:64}px ${serif}`;ctx.textBaseline='alphabetic';ctx.fillText(S.me?`${S.me}’s travel map`:'My travel map',60,ty0);
+  ctx.fillStyle=col.muted;ctx.font=`500 30px ${sans}`;ctx.fillText(new Date().toLocaleDateString(undefined,{month:'long',year:'numeric'}),60,ty0+48);
+  const top=story?ty0+110:210,mh=540;
+  const proj=d3.geoNaturalEarth1().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
+  ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=col.sea;ctx.fill();
+  const fillOf=cc=>{if(!cc)return col.land;if(cc===S.settings.home)return col.home;const t=tier(cs(cc));if(!t)return col.land;return partial(cc)?mix(col[t],col.land,.38):col[t]};
+  for(const p of PATHD){ctx.beginPath();path(p.f);ctx.fillStyle=fillOf(p.cc);ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=.6;ctx.stroke()}
+  for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!statesOn(cc)||cc===S.settings.home)continue;let f;try{f=await regGeo(cc)}catch(e){continue}
+    for(const x of f){const t=tier(r[x.properties.id]||{});if(!t)continue;ctx.beginPath();path(x);ctx.fillStyle=col[t];ctx.fill()}}
+  const ce=centroids();for(const d of DOTS){const t=tier(cs(d.cc));if(!t)continue;const p=ce[d.cc]&&proj([ce[d.cc][1],ce[d.cc][0]]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],6,0,7);ctx.fillStyle=col[t];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=2;ctx.stroke()}
+  if(S.settings.planes!==false){ctx.strokeStyle=mix(col.ink,col.sea,.55);ctx.lineWidth=1.4;const seen=new Set();for(const f of flights()){const k=[f.from,f.to].sort().join();if(seen.has(k))continue;seen.add(k);ctx.beginPath();path({type:'LineString',coordinates:[[f.fl[1],f.fl[0]],[f.tl[1],f.tl[0]]]});ctx.stroke()}}
+  for(const cc of Object.keys(S.countries))for(const[,x]of Object.entries(cs(cc).cities||{})){if(!x.been)continue;const p=proj([x.lon,x.lat]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],4,0,7);ctx.fillStyle=col[tier(x)];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=1.5;ctx.stroke()}
+  const n=countTotals(),conts=new Set(beenCCs().map(continentOf).filter(Boolean)).size,st=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.regions||{}).filter(x=>x.been).length,0),cit=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.cities||{}).filter(x=>x.been).length,0),fs=flightStats();
+  let y=top+mh+(story?170:130);
+  ctx.fillStyle=col.been;ctx.font=`700 150px ${serif}`;ctx.fillText(String(n.been),60,y);const bw=ctx.measureText(String(n.been)).width;
+  ctx.fillStyle=col.muted;ctx.font=`600 52px ${serif}`;const tot=`/${n.total}`;ctx.fillText(tot,60+bw+10,y);const tx=60+bw+10+ctx.measureText(tot).width+28;
+  ctx.fillStyle=col.ink;ctx.font=`700 44px ${sans}`;ctx.fillText('countries',tx,y-56);
+  ctx.fillStyle=col.muted;ctx.font=`500 34px ${sans}`;ctx.fillText(`${Math.round(n.been/n.total*1000)/10}% of the world`,tx,y-10);
+  const tiles=[[conts,'continents'],[st,'states & regions'],[cit,'cities'],[fs.n,'flights'],[fs.km?fmtN(fs.km):0,'km flown'],[realC().filter(c=>cs(c.cc).lived).length,'lived in']].filter(t=>+String(t[0]).replace(/,/g,'')>0).slice(0,4);
+  y+=50;const tw=(W-120-24*3)/4;tiles.forEach(([val,lab],i)=>{const x=60+i*(tw+24);ctx.fillStyle=col.card;ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,tw,140,24):ctx.rect(x,y,tw,140);ctx.fill();ctx.fillStyle=col.ink;ctx.font=`700 54px ${sans}`;ctx.fillText(String(val),x+24,y+70);ctx.fillStyle=col.muted;ctx.font=`500 26px ${sans}`;ctx.fillText(lab,x+24,y+112)});
+  y+=(tiles.length?190:20);
+  if(story){const cl=CONTS.filter(c=>new Set(beenCCs().map(continentOf)).has(c));if(cl.length){ctx.fillStyle=col.muted;ctx.font=`600 28px ${sans}`;ctx.fillText('CONTINENTS',60,y+10);ctx.fillStyle=col.ink;ctx.font=`600 38px ${sans}`;
+    let x=60,yy=y+64;for(const c of cl){const w=ctx.measureText(c).width;if(x+w>W-60){x=60;yy+=56}ctx.fillText(c,x,yy);x+=w+36}y=yy+50}}
+  const fl=beenCCs().filter(cc=>BY[cc].core).sort((a,b)=>BY[a].name.localeCompare(BY[b].name));ctx.font=`52px ${emo}`;const per=14,rowsMax=kind==='story'?8:3;
+  fl.slice(0,per*rowsMax).forEach((cc,i)=>{ctx.fillText(flag(cc),60+(i%per)*68,y+Math.floor(i/per)*70+50)});
+  if(fl.length>per*rowsMax){ctx.fillStyle=col.muted;ctx.font=`500 30px ${sans}`;ctx.fillText(`+${fl.length-per*rowsMax} more`,60,y+rowsMax*70+50)}
+  ctx.fillStyle=col.muted;ctx.font=`600 28px ${sans}`;ctx.fillText('Made with Roamd',60,H-60);
+  return new Promise(r=>cv.toBlob(r,'image/png'))}
+function openSharePicture(){
+  let kind='post',url='',blob=null;
+  sheet({
+    async render(el){el.innerHTML=`${shead('<span class="tt"><b>Share picture</b><small>Your map and numbers as an image</small></span>')}<div class="sbody">
+      <div class="seg">${[['post','Post (4:5)'],['story','Story (9:16)']].map(([k,n])=>`<button data-act="kind" data-v="${k}" class="${kind===k?'on':''}">${n}</button>`).join('')}</div>
+      <div class="shimg" id="shImg"><div class="loading">Drawing…</div></div>
+      <div class="btnrow"><button class="btn" data-act="share" style="flex:1">${ic('share')} Share</button><button class="btn ghost" data-act="save" style="flex:1">Save image</button></div>
+      <p class="tiny muted">Uses your current colors and light or dark mode. Flags may not show on some Windows computers.</p></div>`;
+      try{blob=await makeSharePicture(kind)}catch(e){$('#shImg',el).innerHTML='<p class="muted small pad">The map needs internet the first time.</p>';return}
+      if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(blob);$('#shImg',el).innerHTML=`<img src="${url}" alt="Your travel map picture">`},
+    async click(e,t){if(!t)return;const a=t.dataset.act;
+      if(a==='kind'){kind=t.dataset.v;this.refresh();return}
+      if(!blob)return;const file=new File([blob],`roamd-${kind}-${today()}.png`,{type:'image/png'});
+      if(a==='share'&&navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'My travel map'})}catch(err){}return}
+      const l=document.createElement('a');l.href=url;l.download=file.name;document.body.append(l);l.click();l.remove();if(a==='share')toast('Saved. Sharing pictures isn’t supported in this browser.')},
+  });
+}
+
+/* ---- map from photo locations ---- */
+function openPhotoImport(){
+  let st={phase:'start'};
+  sheet({
+    render(el){const r=st;el.innerHTML=`${shead('<span class="tt"><b>Add from photos</b><small>Find where you’ve been from your photos</small></span>')}<div class="sbody">
+      ${r.phase==='start'?`<p class="small">Pick photos from your trips. Roamd reads each photo’s location and date <b>on this phone</b>; nothing is uploaded. You’ll see what it found before anything is added.</p>
+        <label class="btn wide">${ic('cam')} Choose photos<input type="file" accept="image/*" multiple hidden id="phIn"></label>
+        <p class="tiny muted">iPhone: Safari can remove locations from photos picked straight from Photos. If nothing is found, save the photos to the Files app first and pick them from Files, or use a computer.</p>`:''}
+      ${r.phase==='reading'?`<p>Reading ${r.done} of ${r.total} photos…</p><div class="bar"><i style="width:${r.done/r.total*100}%"></i></div>`:''}
+      ${r.phase==='done'?resultsHTML(r):''}</div>`},
+    async change(e){if(e.target.id!=='phIn')return;const files=[...e.target.files];if(!files.length)return;
+      st={phase:'reading',done:0,total:files.length};this.refresh();
+      try{await loadScript('vendor/exifr.lite.umd.js');await loadGeo();await loadCities();await regIndex();await loadAirports().catch(()=>{})}catch(err){toast('Needs internet the first time');st={phase:'start'};this.refresh();return}
+      const agg={};let withLoc=0,unplaced=0;
+      for(const f of files){try{const g=await exifr.parse(f);if(g&&isFinite(g.latitude)&&isFinite(g.longitude)&&!(g.latitude===0&&g.longitude===0)){withLoc++;
+          let date='';const d=g.DateTimeOriginal||g.CreateDate;if(d instanceof Date&&!isNaN(d))date=localISO(d);
+          const cc=countryAt(g.longitude,g.latitude);if(!cc)unplaced++;if(cc){const a=agg[cc]||(agg[cc]={n:0,dates:new Set(),regions:{},cities:{}});a.n++;if(date)a.dates.add(date);
+            if(hasStates(cc)){try{const F=await regGeo(cc);const hit=F.find(x=>d3.geoContains(x,[g.longitude,g.latitude]));if(hit)a.regions[hit.properties.id]=hit.properties.name}catch(e){}}
+            let best=null,bd=25;for(const c of(CITIES[cc]||[])){const d=hav(g.latitude,g.longitude,c[1],c[2]);if(d<bd){bd=d;best=c}}if(best)a.cities[best[0]]=best}}}catch(err){}
+        st.done++;if(st.done%5===0||st.done===st.total)this.refresh()}
+      const res=Object.entries(agg).map(([cc,a])=>{const ds=[...a.dates].sort(),vis=[];for(const d of ds){const last=vis[vis.length-1];if(last&&dayDiff(last.end,d)<=2)last.end=d;else vis.push({start:d,end:d})}
+        return{cc,n:a.n,regions:a.regions,cities:a.cities,visits:vis.map(v=>({...v,dup:overlaps(cc,v.start,v.end)})),on:true}}).sort((a,b)=>BY[a.cc].name.localeCompare(BY[b.cc].name));
+      st={phase:'done',total:files.length,withLoc,unplaced,res};this.refresh()},
+    click(e,t){const tg=e.target.closest('[data-phcc]');if(tg){const r=st.res.find(x=>x.cc===tg.dataset.phcc);r.on=!r.on;tg.classList.toggle('on',r.on);tg.setAttribute('aria-pressed',r.on);return}
+      if(t&&t.dataset.act==='phadd'){let nc=0,nv=0;for(const r of st.res.filter(x=>x.on)){nc++;if(!cs(r.cc).been)setK(r.cc,'been',true);
+          for(const id of Object.keys(r.regions))if(!rs(r.cc,id).been)setR(r.cc,id,'been',true);
+          for(const c of Object.values(r.cities))if(!ct(r.cc,c[0]).been)setCity(r.cc,c,'been',true);
+          for(const v of r.visits)if(!v.dup){addVisit(r.cc,{start:v.start,end:v.end,note:'From photos'});nv++}}
+        save();toast(`Added ${plural(nc,'country')} and ${plural(nv,'visit')}`);history.back()}
+      if(t&&t.dataset.act==='phagain'){st={phase:'start'};this.refresh()}},
+  });
+  function resultsHTML(r){if(!r.withLoc)return`<p><b>No locations found</b> in ${plural(r.total,'photo')}.</p><p class="small muted">The photos may have had their location removed (see the iPhone note), or location was off when they were taken.</p><button class="btn ghost" data-act="phagain">Try other photos</button>`;
+    return`<p class="small">${r.withLoc} of ${plural(r.total,'photo')} had a location.${r.unplaced?` ${r.unplaced} couldn’t be placed in a country (at sea or far from land).`:''} Tap a country to leave it out.</p>
+    ${r.res.map(x=>`<button class="phres on" data-phcc="${x.cc}" aria-pressed="true"><span class="flag big">${flag(x.cc)}</span><span class="ptxt"><span class="pt">${esc(BY[x.cc].name)} <small class="muted">${plural(x.n,'photo')}</small></span>
+      ${Object.keys(x.regions).length?`<span class="pm">${esc(Object.values(x.regions).join(', '))}</span>`:''}${Object.keys(x.cities).length?`<span class="pm">${esc(Object.keys(x.cities).join(', '))}</span>`:''}
+      ${x.visits.length?`<span class="pm">${x.visits.map(v=>`${fmtD(v.start)}${v.end!==v.start?' – '+fmtD(v.end):''}${v.dup?' (already logged)':''}`).join(' · ')}</span>`:'<span class="pm">No dates in these photos</span>'}</span><span class="tick">✓</span></button>`).join('')}
+    <button class="btn wide" data-act="phadd" style="margin-top:12px">Add to my map</button>`}
+}
+
+/* ---- full screen maps ---- */
+let fsOn=false;
+function setMapFS(on){if(on===fsOn)return;fsOn=on;$('.mapwrap').classList.toggle('fs',on);document.body.classList.toggle('mapfs',on);const b=$('#zfull');if(b){b.innerHTML=ic(on?'shrink':'expand');b.setAttribute('aria-label',on?'Exit full screen':'Full screen')}
+  try{if(on&&document.documentElement.requestFullscreen&&!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});else if(!on&&document.fullscreenElement)document.exitFullscreen().catch(()=>{})}catch(e){}
+  setTimeout(()=>{if(mapReady){sizeDots();sizeLists()}},60)}
+function toggleMapFS(){if(fsOn)history.back();else{history.pushState({fs:1},'');setMapFS(true)}}
+window.addEventListener('popstate',()=>{if(fsOn&&!stack.length&&!(history.state&&history.state.fs))setMapFS(false)});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&fsOn&&!stack.length&&history.state&&history.state.fs)history.back()});
+function zoomable(svg){const g=svg.querySelector('g.zg');if(!g)return;const z=d3.zoom().scaleExtent([1,24]).on('zoom',e=>g.setAttribute('transform',e.transform));d3.select(svg).call(z).on('dblclick.zoom',null);svg.classList.add('zoomy')}
+function openRegionMapFS(cc,onChange){
+  let sel='';
+  sheet({
+    async render(el){const idx=REGIDX[cc]||[];if(!el.innerHTML){el.classList.add('fsheet');el.innerHTML=`${shead(`<span class="flag">${flag(cc)}</span><span class="tt"><b>${esc(BY[cc].name)}</b><small>Pinch to zoom · tap to mark</small></span>`)}<div class="fsbody"><div class="fsmap" id="fsMap"><div class="loading">Loading map…</div></div><div class="fsbar" id="fsBar"></div></div>`;
+        await drawMini($('#fsMap',el),cc,'');const svg=$('#fsMap svg',el);if(svg)zoomable(svg)}
+      const sr=sel&&idx.find(([id])=>id===sel);
+      $('#fsBar',el).innerHTML=sr?`<b>${esc(sr[1])}</b><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${rs(cc,sel)[k]?' on':''}" data-rq="${sel}" data-k="${k}">${QL[k]}</button>`).join('')}</span>`:`<span class="muted small">Tap a ${rword(cc).split(' ')[0].toLowerCase().replace(/s$/,'').replace(/ie$/,'y')} to mark it.</span>`;
+      $$('#fsMap path.rg',el).forEach(p=>{const t=tier(rs(cc,p.dataset.rid));p.setAttribute('class','rg'+(t?' s-'+t:'')+(p.dataset.rid===sel?' sel':''))})},
+    click(e){const rid=e.target.closest('[data-rid]');if(rid){sel=rid.dataset.rid;this.refresh();return}
+      const rq=e.target.closest('[data-rq]');if(rq){const k=rq.dataset.k;setR(cc,rq.dataset.rq,k,!rs(cc,rq.dataset.rq)[k]);this.refresh();onChange&&onChange()}},
+  });
+}
+function openCompareFS(r,name){
+  sheet({async render(el){if(el.innerHTML)return;el.classList.add('fsheet');el.innerHTML=`${shead(`<span class="tt"><b>You &amp; ${esc(name)}</b><small>Pinch to zoom</small></span>`)}<div class="fsbody"><div class="fsmap" id="fsMap"></div><div class="legend fsleg"><span class="lg"><i class="dot both"></i>Both</span><span class="lg"><i class="dot mine"></i>Only you</span><span class="lg"><i class="dot them"></i>Only ${esc(name)}</span></div></div>`;
+    await drawCompare($('#fsMap',el),r);const svg=$('#fsMap svg',el);if(svg){svg.innerHTML=`<g class="zg">${svg.innerHTML}</g>`;zoomable(svg)}}});
+}
+
 /* ---------- countries list ---------- */
 let filt='all',q='';
-function rowHTML(c){const s=cs(c.cc);return`<div class="crow" data-cc="${c.cc}"><button class="cmain" data-open-cc="${c.cc}"><span class="flag">${flag(c.cc)}</span><span class="cname">${esc(c.name)}${c.disp?'<small>disputed</small>':c.core?'':'<small>territory</small>'}</span></button><span class="qb">${['been','want','lived'].map(k=>`<button class="q q-${k}${s[k]?' on':''}" data-k="${k}" aria-pressed="${!!s[k]}">${k==='want'?'Want':KL[k]}</button>`).join('')}</span></div>`}
+function rowHTML(c){const s=cs(c.cc);return`<div class="crow" data-cc="${c.cc}"><button class="cmain" data-open-cc="${c.cc}"><span class="flag">${flag(c.cc)}</span><span class="cname">${esc(c.name)}${c.disp?'<small>disputed</small>':c.core?'':'<small>territory</small>'}</span></button><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${s[k]?' on':''}" data-k="${k}" aria-pressed="${!!s[k]}">${QL[k]}</button>`).join('')}</span></div>`}
 function renderList(){
   const qq=q.trim().toLowerCase();let html='';
   for(const[rc,rn]of REGIONS){
-    const rows=C.filter(c=>{if(c.reg!==rc||!showC(c))return false;if(qq&&!c.name.toLowerCase().includes(qq))return false;const s=cs(c.cc);return filt==='all'||(filt==='none'?!(s.been||s.want||s.lived):!!s[filt])});
+    const rows=C.filter(c=>{if(c.reg!==rc||!showC(c))return false;if(qq&&!c.name.toLowerCase().includes(qq))return false;const s=cs(c.cc);return filt==='all'||(filt==='none'?!(s.been||s.want||s.lived||s.drive):!!s[filt])});
     if(!rows.length)continue;
     const all=C.filter(c=>c.reg===rc&&c.core),b=all.filter(c=>cs(c.cc).been).length;
     const rsum=regionSummary(rc);html+=`<h3 class="rhead"><span>${rn}</span>${all.length?`<small>${b}/${all.length} been</small>`:''}</h3>${rsum.all?`<div class="stctl"><span class="small muted">States &amp; provinces · ${rsum.on} of ${rsum.all}</span><button class="btn sm ghost" data-stchoose="${rc}">Choose countries</button>${switchHTML(regionOn(rc)&&rsum.on>0,`data-streg="${rc}"`,'States in '+rn)}</div>`:''}<div class="card">${rows.map(rowHTML).join('')}</div>`;
@@ -407,8 +754,8 @@ async function openCountry(cc,selR){
       const loose=plans.filter(p=>!secs.some(x=>x.id===p.sec));
       el.innerHTML=`${shead(`<span class="flag big">${flag(cc)}</span><span class="tt"><b>${esc(c.name)}</b><small>${RNAME[c.reg]}${c.core?'':' · territory'}</small></span>`)}
       <div class="sbody">
-        <div class="stoggles">${['been','want','lived'].map(k=>`<button class="st st-${k}${s[k]?' on':''}" data-act="tog" data-k="${k}"><i class="dot ${k}"></i>${KL[k]}</button>`).join('')}</div>
-        ${s.been?`<label class="fld"><span>When did you go?</span><input data-f="years" value="${esc(s.years||'')}" placeholder="e.g. 2019, summer 2023"></label>`:''}
+        <div class="stoggles">${KEYS.map(k=>`<button class="st st-${k}${s[k]?' on':''}" data-act="tog" data-k="${k}"><i class="dot ${k}"></i>${KL[k]}</button>`).join('')}</div>
+        ${c.disp?'':`<div class="visitsbox">${visitsHTML(cc)}</div>`}
         ${s.lived?`<label class="fld"><span>Where and when did you live there?</span><input data-f="livedNote" value="${esc(s.livedNote||'')}" placeholder="e.g. Amman, 2021–2022"></label>`:''}
         <label class="fld"><span>Notes</span><textarea data-f="notes" rows="3" placeholder="Memories, people, places, food…">${esc(s.notes||'')}</textarea></label>
         ${regionsBlockHTML(cc,sel)}
@@ -431,13 +778,16 @@ async function openCountry(cc,selR){
       if(photoClick(e,()=>co(cc).photos||(co(cc).photos=[]),this))return;
       if(!t)return;const a=t.dataset.act;
       if(a==='tog'){const k=t.dataset.k;setK(cc,k,!cs(cc)[k]);this.refresh()}
+      else if(a==='addvisit'){const o=co(cc);(o.visits||(o.visits=[])).push({id:uid(),start:today(),end:today(),note:''});if(!o.been)setK(cc,'been',true);else save();this.refresh()}
+      else if(a==='delvisit'){if(confirm('Remove this visit?')){const o=co(cc);o.visits=(o.visits||[]).filter(v=>v.id!==t.dataset.id);save();this.refresh()}}
+      else if(a==='regfs'){openRegionMapFS(cc)}
       else if(a==='newsec'){if(newSection(cc))this.refresh()}
       else if(a==='newplan'){const p=newPlan(cc,t.dataset.sec);openPlan(p.id,true)}
       else if(a==='rensec'){const x=S.sections.find(s=>s.id===t.dataset.id);const n=(prompt('Rename section',x.name)||'').trim();if(n){x.name=n;save();this.refresh()}}
       else if(a==='delsec'){const x=S.sections.find(s=>s.id===t.dataset.id);if(confirm(`Delete the section “${x.name}”? Its plans stay in ${c.name}, just not in a section.`)){S.sections=S.sections.filter(s=>s!==x);S.plans.forEach(p=>{if(p.sec===x.id)p.sec=''});save();this.refresh()}}
     },
-    input(e){const f=e.target.dataset.f;if(f){co(cc)[f]=e.target.value;save()}},
-    change(e){photoChange(e,()=>co(cc).photos||(co(cc).photos=[]),this)},
+    input(e){if(visitEvent(e,cc,()=>this.refresh()))return;const f=e.target.dataset.f;if(f){co(cc)[f]=e.target.value;save()}},
+    change(e){if(visitEvent(e,cc,()=>this.refresh()))return;photoChange(e,()=>co(cc).photos||(co(cc).photos=[]),this)},
   });
 }
 
@@ -476,6 +826,7 @@ function openPlan(id,fresh){
         <h4 class="sub">Checklist</h4>
         <div class="todos">${(p.todos||[]).map((t,i)=>`<div class="todo"><input type="checkbox" data-todo="${i}"${t.done?' checked':''} aria-label="Done"><input class="tdt${t.done?' done':''}" data-todot="${i}" value="${esc(t.t)}"><button class="iconbtn sm" data-act="deltodo" data-i="${i}" aria-label="Remove">${ic('x')}</button></div>`).join('')}
         <div class="todo add"><input id="todoIn" placeholder="Add an item (passport, book hostel…)" enterkeyhint="done"><button class="btn sm" data-act="addtodo">Add</button></div></div>
+        <div class="btnrow packrow"><button class="btn sm ghost" data-act="pack">Add my packing list</button>${(p.todos||[]).length?'<button class="btn sm ghost" data-act="savepack">Save as my packing list</button>':''}</div>
         <label class="fld"><span>Notes</span><textarea data-p="notes" rows="5" placeholder="Ideas, food to try, budget, who to see…">${esc(p.notes||'')}</textarea></label>
       </div>`;
       if(fresh){fresh=false;setTimeout(()=>{const t=$('.ptitle',el);if(t&&!t.value)t.focus()},350)}
@@ -492,6 +843,8 @@ function openPlan(id,fresh){
       else if(a==='dellink'){p.links.splice(+t.dataset.i,1);save();this.refresh()}
       else if(a==='watch'){const f=t.closest('.vframe');f.classList.add('on');f.innerHTML=`<iframe src="${f.dataset.embed}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`}
       else if(a==='addtodo'){const inp=$('#todoIn',this.el);const v=inp.value.trim();if(!v)return;(p.todos||(p.todos=[])).push({t:v,done:false});save();this.refresh();$('#todoIn',this.el).focus()}
+      else if(a==='pack'){const have=new Set((p.todos||[]).map(x=>x.t.toLowerCase()));const add=packList().filter(x=>!have.has(x.toLowerCase()));(p.todos||(p.todos=[])).push(...add.map(t=>({t,done:false})));save();this.refresh();toast(add.length?`Added ${plural(add.length,'item')}`:'Already on the list')}
+      else if(a==='savepack'){S.settings.packing=(p.todos||[]).map(x=>x.t);save();toast('Saved as your packing list')}
       else if(a==='deltodo'){p.todos.splice(+t.dataset.i,1);save();this.refresh()}
       else if(a==='delplan'){if(confirm('Delete this plan? Its photos are deleted too.')){(p.photos||[]).forEach(id=>phDel(id).catch(()=>{}));S.plans=S.plans.filter(x=>x!==p);save();history.back()}}
       else if(a==='movecc'){pickCountry('Move plan to…',cc=>{if(cc!==p.cc){p.cc=cc;p.sec='';save()}})}
@@ -597,7 +950,7 @@ function openFriend(id){
       const r=cmpStats(f),coreN=a=>a.filter(cc=>BY[cc]?.core).length;
       el.innerHTML=`${shead(`<span class="tt"><b>You &amp; ${esc(f.name)}</b><small>Their map from ${new Date(f.added).toLocaleDateString()}</small></span>`,`<button class="iconbtn" data-act="delfr" aria-label="Remove">${ic('trash')}</button>`)}
       <div class="sbody">
-        <div class="cmpmap" id="cmpMap"><div class="loading">Loading map…</div></div>
+        <div class="cminiwrap"><div class="cmpmap" id="cmpMap"><div class="loading">Loading map…</div></div><button class="iconbtn sm mfs" data-act="cfs" aria-label="Full screen map">${ic('expand')}</button></div>
         <div class="legend"><span class="lg"><i class="dot both"></i>Both <b>${r.both.length}</b></span><span class="lg"><i class="dot mine"></i>Only you <b>${r.mine.length}</b></span><span class="lg"><i class="dot them"></i>Only ${esc(f.name)} <b>${r.them.length}</b></span></div>
         <div class="vs"><div><b>${coreN([...r.me])}</b><span>You</span></div><div class="vsmid">countries</div><div><b>${coreN(f.been)}</b><span>${esc(f.name)}</span></div></div>
         <h4 class="sub">${esc(f.name)} has been, you haven’t <small class="muted">trip ideas, ask them</small></h4>${chipList(r.them)}
@@ -608,7 +961,7 @@ function openFriend(id){
       </div>`;
       drawCompare($('#cmpMap',el),r);
     },
-    click(e,t){const oc=e.target.closest('[data-open-cc]');if(oc){openCountry(oc.dataset.openCc);return}if(t&&t.dataset.act==='delfr'){const f=S.friends.find(x=>x.id===id);if(confirm(`Remove ${f.name}’s map?`)){S.friends=S.friends.filter(x=>x!==f);save();history.back()}}},
+    click(e,t){const oc=e.target.closest('[data-open-cc]');if(oc){openCountry(oc.dataset.openCc);return}if(t&&t.dataset.act==='cfs'){const f=S.friends.find(x=>x.id===id);openCompareFS(cmpStats(f),f.name);return}if(t&&t.dataset.act==='delfr'){const f=S.friends.find(x=>x.id===id);if(confirm(`Remove ${f.name}’s map?`)){S.friends=S.friends.filter(x=>x!==f);save();history.back()}}},
   });
 }
 async function drawCompare(box,r){
@@ -625,18 +978,38 @@ async function copyText(s){try{await navigator.clipboard.writeText(s);toast('Lin
 function takeFriendLink(txt){const f=parseCode(txt);if(!f){toast('That isn’t a Roamd map link');return false}const n=addFriend(f);setTab('compare');openFriend(n.id);return true}
 
 /* ---------- stats ---------- */
-function renderStats(){
-  const n=counts(),pct=Math.round(n.been/CORE*1000)/10;
+async function renderStats(){
+  const n=counts(),pct=Math.round(n.been/n.total*1000)/10,home=S.settings.home;
   const regs=REGIONS.filter(([rc])=>rc!=='AN').map(([rc,rn])=>{const all=C.filter(c=>c.reg===rc&&c.core);const b=all.filter(c=>cs(c.cc).been).length;return{rc,rn,b,t:all.length}});
-  const touched=regs.filter(r=>r.b).length+(cs('AQ').been?1:0);
+  const conts=new Set(beenCCs().map(continentOf).filter(Boolean));
   const regs2=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.regions||{}).filter(x=>x.been).length,0),cities2=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.cities||{}).filter(x=>x.been).length,0),aps=Object.keys(S.airports||{}).length;
   const photos=Object.values(S.countries).reduce((a,s)=>a+(s.photos?.length||0),0)+S.plans.reduce((a,p)=>a+(p.photos?.length||0),0);
+  const vs=allVisits(),away=vs.filter(v=>v.cc!==home).reduce((a,v)=>a+v.days,0),fs=flightStats();
+  const byYear={};vs.forEach(v=>{const y=v.start.slice(0,4);(byYear[y]||(byYear[y]=new Set())).add(v.cc)});const yrs=Object.keys(byYear).sort().reverse().slice(0,10),ymax=Math.max(1,...yrs.map(y=>byYear[y].size));
+  let far=null;const ce=centroids();if(home&&ce[home]){const[hl,ho]=ce[home];const cand=[];beenCCs().forEach(cc=>{if(cc!==home&&ce[cc])cand.push([BY[cc].name,cc,ce[cc]])});
+    Object.entries(S.countries).forEach(([cc,o])=>Object.entries(o.cities||{}).forEach(([nm,x])=>{if(x.been)cand.push([nm+', '+BY[cc].name,cc,[x.lat,x.lon]])}));
+    cand.forEach(c=>{const d=hav(hl,ho,c[2][0],c[2][1]);if(!far||d>far.d)far={d,name:c[0],cc:c[1]}})}
+  const B=badgeList(),earned=B.filter(b=>b[2]>=b[3]).length;
+  const tile=(v,l)=>`<div class="tile"><b>${v}</b><span>${l}</span></div>`;
   $('#statsBox').innerHTML=`
-  <div class="hero"><div class="big">${n.been}<small>/${CORE}</small></div><div><b>countries</b><span>${pct}% of the world${n.terr?` · plus ${plural(n.terr,'territory')}`:''}</span></div>
+  <div class="hero"><div class="big">${n.been}<small>/${n.total}</small></div><div><b>countries</b><span>${pct}% of the world${n.terr?` · plus ${plural(n.terr,'territory')}`:''}${S.settings.ukSplit?' · UK nations counted separately':''}</span></div>
   <div class="bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>
-  <div class="tiles"><div class="tile"><b>${touched}</b><span>of ${REGIONS.length} regions</span></div><div class="tile"><b>${n.lived}</b><span>lived in</span></div><div class="tile"><b>${n.want}</b><span>want to go</span></div><div class="tile"><b>${S.plans.length}</b><span>plans</span></div><div class="tile"><b>${photos}</b><span>photos</span></div><div class="tile"><b>${S.friends.length}</b><span>friends’ maps</span></div><div class="tile"><b>${regs2}</b><span>states &amp; regions</span></div><div class="tile"><b>${cities2}</b><span>cities</span></div><div class="tile"><b>${aps}</b><span>airports</span></div></div>
+  <div class="btnrow" id="stBtns" style="margin-top:10px"><button class="btn" data-st="share" style="flex:1">${ic('share')} Share picture</button><button class="btn ghost" data-st="timeline" style="flex:1">${ic('clock')} Timeline</button></div>
+  <div class="tiles">${tile(conts.size+'<small>/7</small>','continents')}${tile(n.lived,'lived in')}${tile(n.want,'want to go')}${n.drive?tile(n.drive,'drove through'):''}${tile(regs2,'states &amp; regions')}${tile(cities2,'cities')}${tile(aps,'airports')}${tile(fs.n,'flights')}${tile(fmtN(fs.km),'km flown')}${tile(away,'days away')}${tile(S.plans.length,'plans')}${tile(photos,'photos')}${tile(S.friends.length,'friends’ maps')}</div>
+  ${far?`<div class="card pad farcard"><span class="small muted">Farthest from home</span><b>${flag(far.cc)} ${esc(far.name)}</b><span class="small">${fmtN(far.d)} km · ${fmtN(far.d*0.621371)} mi from ${esc(BY[home].name)}</span></div>`:home?'':`<button class="card pad farcard" data-st="home"><span class="small muted">Farthest from home</span><b>Set your home country</b><span class="small muted">Also used for days away and the Expat badge</span></button>`}
+  <h3 class="rhead"><span>Badges</span><small>${earned} of ${B.length}</small></h3>
+  <div class="badges" id="statBadges">${B.map(([nm,d,v,goal])=>{const on=v>=goal;return`<div class="badge${on?' on':''}"><span class="bico">${ic('star')}</span><b>${nm}</b><span>${esc(d)}</span>${on?'':`<span class="bprog"><i style="width:${Math.min(100,v/goal*100)}%"></i></span><small>${fmtN(Math.min(v,goal))} / ${fmtN(goal)}</small>`}</div>`}).join('')}</div>
+  <h3 class="rhead"><span>Lists</span></h3><div id="statLists"><div class="loading" style="position:static;padding:20px">Loading lists…</div></div>
+  ${yrs.length?`<h3 class="rhead"><span>Countries by year</span></h3><div class="card pad">${yrs.map(y=>`<div class="rbar"><span class="rn">${y}</span><span class="rv">${byYear[y].size}</span><div class="bar"><i style="width:${byYear[y].size/ymax*100}%"></i></div></div>`).join('')}</div>`:''}
+  ${fs.n?`<h3 class="rhead"><span>Flights</span><small>${fs.n} · ${fmtN(fs.km)} km</small></h3><div class="card pad fcard">
+    ${fs.longest?`<p class="small"><b>Longest:</b> ${fs.longest.from} → ${fs.longest.to}, ${fmtN(flightKm(fs.longest))} km</p>`:''}
+    <p class="small"><b>Top airports:</b> ${fs.ap.map(([c,k])=>`${c} (${k})`).join(', ')}</p><p class="small"><b>Top routes:</b> ${fs.rt.map(([c,k])=>`${c} (${k})`).join(', ')}</p>
+    ${fs.al.length?`<p class="small"><b>Airlines:</b> ${fs.al.map(([c,k])=>`${esc(c)} (${k})`).join(', ')}</p>`:''}
+    <p class="small muted">${(fs.km/40075).toFixed(2)}× around the Earth · ${(fs.km/384400*100).toFixed(1)}% of the way to the Moon</p>
+    <button class="btn sm ghost" data-st="flights">All flights</button></div>`:`<div class="card pad"><p class="small">Log flights to see distance flown, top routes and airlines.</p><div class="btnrow"><button class="btn sm" data-st="flights">${ic('plane')} Add flights</button><button class="btn sm ghost" data-st="import">Import from Flighty or others</button></div></div>`}
   <h3 class="rhead"><span>By region</span></h3>
   <div class="card pad">${regs.map(r=>`<div class="rbar"><span class="rn">${r.rn}</span><span class="rv">${r.b}/${r.t}</span><div class="bar"><i style="width:${r.t?r.b/r.t*100:0}%"></i></div></div>`).join('')}</div>`;
+  const lc=$('#statLists');if(lc)lc.innerHTML=await listsCardHTML();
 }
 
 /* ---------- settings, help, backup ---------- */
@@ -666,8 +1039,8 @@ async function restoreBackup(file){
 }
 function exportCSV(){
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  const rows=[['Country','Region','Been','Want to go','Lived','When','Where lived','Notes']];
-  for(const c of C){const s=cs(c.cc);if(!(s.been||s.want||s.lived||s.notes))continue;rows.push([c.name,RNAME[c.reg],s.been?'yes':'',s.want?'yes':'',s.lived?'yes':'',s.years,s.livedNote,s.notes])}
+  const rows=[['Country','Region','Been','Want to go','Lived','Drove through','When','Where lived','Notes','Visits']];
+  for(const c of C){const s=cs(c.cc);if(c.disp||!(s.been||s.want||s.lived||s.drive||s.notes))continue;rows.push([c.name,RNAME[c.reg],s.been?'yes':'',s.want?'yes':'',s.lived?'yes':'',s.drive?'yes':'',s.years,s.livedNote,s.notes,(s.visits||[]).filter(v=>v.start).map(v=>v.start+(v.end&&v.end!==v.start?' to '+v.end:'')).join('; ')])}
   const blob=new Blob([rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`roamd-countries-${today()}.csv`;a.click();
 }
 function openSettings(){
@@ -677,18 +1050,31 @@ function openSettings(){
       el.innerHTML=`${shead('<span class="tt"><b>Settings</b></span>')}<div class="sbody">
       <h4 class="sub">Theme</h4><div class="seg">${['auto','light','dark'].map(t=>`<button data-act="theme" data-v="${t}" class="${S.settings.theme===t?'on':''}">${t==='auto'?'Match phone':t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>
       <h4 class="sub">Map colors</h4>${paletteHTML()}
+      <h4 class="sub">Counting</h4><div id="cntBox"><div class="strow top"><span class="stname"><b>UK nations as four countries</b><small>England, Scotland, Wales and Northern Ireland each count once you mark one of their regions</small></span>${switchHTML(!!S.settings.ukSplit,'data-act="uk"','UK nations as four countries')}</div>
+      <div class="strow top"><span class="stname"><b>Count territories</b><small>Puerto Rico, Greenland, Hong Kong and the other ${realC().filter(c=>!c.core).length} territories count toward your total</small></span>${switchHTML(!!S.settings.countTerr,'data-act="terr"','Count territories')}</div>
+      <div class="strow top"><span class="stname"><b>Count “Drove through”</b><small>Places you only passed through count toward your total</small></span>${switchHTML(!!S.settings.countDrive,'data-act="cdrive"','Count drove through')}</div>
+      ${homeHTML()}</div>
       <h4 class="sub">States &amp; provinces</h4>${statesTreeHTML()}
       <h4 class="sub">Disputed territories</h4><div class="strow top"><span class="stname"><b>Show disputed territories</b><small>Somaliland, Northern Cyprus, Abkhazia, Crimea, Kashmir areas and ${DISP.length-5} more become their own places to mark. They’re never counted in your countries.</small></span>${switchHTML(!!S.settings.disputed,'data-act="disp"','Show disputed territories')}</div>
       <h4 class="sub">Backup</h4><p class="muted small">Roamd saves on this phone only. A backup file holds everything, photos included. Last backup: <b>${S.settings.lastBackup?new Date(S.settings.lastBackup).toLocaleDateString():'never'}</b>.</p>
       <div class="btnrow"><button class="btn" data-act="backup">Save backup</button><label class="btn ghost">Restore from backup<input type="file" accept="application/json,.json" hidden id="restoreIn"></label></div>
+      <h4 class="sub">Import</h4><div class="btnrow"><button class="btn ghost" data-act="impfl">${ic('plane')} Flights (CSV)</button><button class="btn ghost" data-act="impph">${ic('cam')} Places from photos</button></div>
+      <h4 class="sub">Packing list</h4><p class="muted small">One item per line. Add it to any plan’s checklist with one tap.</p><textarea id="packIn" rows="6">${esc(packList().join('\n'))}</textarea>
       <h4 class="sub">Export</h4><div class="btnrow"><button class="btn ghost" data-act="csv">Countries as a spreadsheet (CSV)</button></div>
       ${standalone?'':`<h4 class="sub">Put Roamd on your home screen</h4><p class="muted small">${ios?'In Safari, tap Share, then <b>Add to Home Screen</b>.':'In Chrome, tap ⋮, then <b>Install app</b> (or Add to Home screen).'} It then opens full screen and works offline.</p>`}
       <h4 class="sub">More</h4><div class="btnrow"><button class="btn ghost" data-act="tour">Replay the tour</button><button class="btn ghost" data-act="help">Help</button></div>
       <h4 class="sub danger">Start over</h4><button class="btn danger" data-act="wipe">Erase everything on this phone</button>
-      <p class="tiny muted ver">Roamd v2 · map data: Natural Earth, geoBoundaries, OurAirports</p></div>`;
+      <p class="tiny muted ver">Roamd v3 · data: Natural Earth, geoBoundaries, OurAirports, UNESCO</p></div>`;
     },
-    async click(e,t){if(stClick(e,()=>this.refresh()))return;if(!t)return;const a=t.dataset.act;
+    input(e){if(e.target.id==='packIn'){S.settings.packing=e.target.value.split('\n').map(x=>x.trim()).filter(Boolean);save()}},
+    async click(e,t){if(stClick(e,()=>this.refresh()))return;const hc=e.target.closest('[data-hc]');if(hc){S.settings.homeColor=hc.dataset.hc;save();applyHomeColor();this.refresh();return}if(!t)return;const a=t.dataset.act;
       if(a==='disp'){S.settings.disputed=!S.settings.disputed;save();this.refresh()}
+      else if(a==='uk'){S.settings.ukSplit=!S.settings.ukSplit;save();this.refresh()}
+      else if(a==='terr'){S.settings.countTerr=!S.settings.countTerr;save();this.refresh()}
+      else if(a==='cdrive'){S.settings.countDrive=!S.settings.countDrive;save();this.refresh()}
+      else if(a==='sethome'){pickCountry('Your home country',cc=>{S.settings.home=cc;save()})}
+      else if(a==='clearhome'){S.settings.home='';save();this.refresh()}
+      else if(a==='impfl'){openImportFlights()}else if(a==='impph'){openPhotoImport()}
       else if(a==='theme'){S.settings.theme=t.dataset.v;save();applyTheme();this.refresh()}
       else if(a==='pal'){S.settings.palette=t.dataset.v;save();applyPalette();this.refresh()}
       else if(a==='palcustom'){openColors()}
@@ -700,24 +1086,33 @@ function openSettings(){
 }
 function openHelp(){
   sheet({render(el){el.innerHTML=`${shead('<span class="tt"><b>Help</b></span>')}<div class="sbody help">
-  <h4 class="sub">Marking countries</h4><p>Tap a country on the map, or use the Countries tab and tap <b>Been</b>, <b>Want</b> or <b>Lived</b> on its row. Lived also counts as Been. Open a country to add when you went, where you lived, notes and photos.</p>
-  <h4 class="sub">States, provinces and cities</h4><p>Open a country to see its states, provinces or regions (60 larger countries have them; Indonesia has all 38 provinces, the UK has England’s 9 regions plus Scotland, Wales and Northern Ireland). Tap one on the small map or use the list. Marked ones show in full color and the rest of the country turns a lighter shade. Find cities in the box under the map; marked cities show as dots. Marking a state or city also marks the country.</p>
-  <h4 class="sub">Airports</h4><p>Tap the plane button on the map. Search by code (CLT), city or name and tap Log each time you fly in, out or through; − and + change the count. Each airport gets a small plane on the map. Logging an airport doesn’t mark the country, since a layover isn’t a visit.</p>
-  <h4 class="sub">Colors</h4><p>Settings → Map colors: pick a preset (two are made for color blindness) or Custom, then choose Been, Want to go and Lived on the color wheel. Suggestions show colors that go together; light mode uses deeper versions.</p>
-  <h4 class="sub">Plans</h4><p>Plans are sorted by region, then country, then sections you make yourself, such as a city (“Kyoto”), a route (“Ring Road”) or one trip (“Spring 2027”). Each plan has dates, a status (Idea, Booked, Done), reels and TikToks, photos, a checklist and notes. Make a section from the country page, or pick <b>+ New section…</b> in a plan.</p>
-  <h4 class="sub">Saving reels and TikToks</h4><p>Copy the link in Instagram, TikTok or YouTube (Share → Copy link), open the plan and tap <b>Paste</b>. On Android with Roamd installed, you can also share straight to Roamd from the share sheet. Tap <b>Watch here</b> to play it inside the plan.</p>
-  <h4 class="sub">Comparing maps</h4><p>In Compare, tap <b>Share my map</b> and send the link. When a friend opens it in Roamd, your map is added to theirs and they see both, only you, only them, and places you both want to go. Ask them to send theirs back.</p>
-  <h4 class="sub">Regions</h4><p>NA North America (incl. Mexico) · CA Central America · CB Caribbean · SA South America · EU Europe (incl. Russia) · ME Middle East (incl. Egypt, Iran, Türkiye, the Caucasus) · AF Africa · CAS Central Asia · SAS South Asia · EAS East Asia · SEA Southeast Asia · AU Australia &amp; NZ · OC Oceania (Pacific islands) · AN Antarctica. The count of ${CORE} is UN members plus Vatican City and Palestine; territories (Puerto Rico, Greenland, Hong Kong…) are listed too but counted separately.</p>
+  <h4 class="sub">Marking countries</h4><p>Tap a country on the map, or use the Countries tab and tap <b>Been</b>, <b>Want</b>, <b>Lived</b> or <b>Drove</b> on its row. Lived also counts as Been. <b>Drove through</b> is for places you only passed through on the road; it has its own color, works for states and cities too, and counts toward your total only if you turn that on in Settings → Counting. Open a country to add visits, notes and photos.</p>
+  <h4 class="sub">Visits and your timeline</h4><p>On a country’s page, tap <b>+ Visit</b> and set the dates. Stats → <b>Timeline</b> lists your trips by year; tap <b>Play</b> to watch your map fill in year by year. Visits also give days away and countries per year.</p>
+  <h4 class="sub">States, provinces and cities</h4><p>213 countries have states, provinces or regions (Indonesia has all 38 provinces; the UK has England’s 9 regions plus Scotland, Wales and Northern Ireland). Tap one on the country’s map, or use the list; the corner button opens the map full screen. Find cities in the box under the map. Marking a state or city also marks the country.</p>
+  <h4 class="sub">Add places from photos</h4><p>Countries tab → <b>From photos</b> (or Settings → Import). Pick photos; Roamd reads their location and date on this phone, suggests countries, states, cities and visits, and adds only what you keep.</p>
+  <h4 class="sub">Airports and flights</h4><p>Tap the plane button on the map. Log airports with Log, − and +, or open <b>Flights</b> to add whole flights with dates; each flight draws an arc on the map and counts toward distance, top routes and badges. <b>Import</b> reads a CSV from Flighty, OpenFlights, myFlightradar24 or any sheet with From, To and Date columns.</p>
+  <h4 class="sub">Lists</h4><p>Stats → Lists: UNESCO World Heritage sites, world capitals, the New 7 Wonders and US national parks. Tick what you’ve seen; ticking also marks the country. Turn on <b>Show on the map</b> to see them as small diamonds.</p>
+  <h4 class="sub">Badges, share picture</h4><p>Stats shows badges with your progress toward each. <b>Share picture</b> makes an image of your map, numbers and flags for a post or story.</p>
+  <h4 class="sub">How countries are counted</h4><p>The total is ${CORE}: UN members plus Vatican City and Palestine. Settings → Counting can count England, Scotland, Wales and Northern Ireland separately, and count territories (Puerto Rico, Greenland, Hong Kong…). Disputed territories are never counted.</p>
+  <h4 class="sub">Colors and home</h4><p>Settings → Map colors: a preset (two are made for color blindness) or Custom on a color wheel. Set your home country to give it its own color.</p>
+  <h4 class="sub">Plans</h4><p>Plans are sorted by region, then country, then sections you name, such as a city, a route or one trip. Each has dates, a status, reels and TikToks, photos, a checklist and notes. <b>Add my packing list</b> drops your list (edit it in Settings) into the checklist.</p>
+  <h4 class="sub">Saving reels and TikToks</h4><p>Copy the link in Instagram, TikTok or YouTube (Share → Copy link), open the plan and tap <b>Paste</b>. On Android with Roamd installed you can also share straight to Roamd. Tap <b>Watch here</b> to play it inside the plan.</p>
+  <h4 class="sub">Comparing maps</h4><p>In Compare, tap <b>Share my map</b> and send the link. When a friend opens it in Roamd they see both, only you, only them, and places you both want to go.</p>
+  <h4 class="sub">Full screen</h4><p>The corner button on the main map, a country’s map or a Compare map makes it fill the screen. Back or the same button returns.</p>
+  <h4 class="sub">Regions</h4><p>NA North America (incl. Mexico) · CA Central America · CB Caribbean · SA South America · EU Europe (incl. Russia) · ME Middle East (incl. Egypt, Iran, Türkiye, the Caucasus) · AF Africa · CAS Central Asia · SAS South Asia · EAS East Asia · SEA Southeast Asia · AU Australia &amp; NZ · OC Oceania · AN Antarctica. Continents for badges follow these, with Egypt in Africa.</p>
   <h4 class="sub">Limitations</h4><ul class="lims">
   <li><b>No sync.</b> Everything stays on this phone. Save a backup now and then; it includes photos.</li>
-  <li><b>Compare is a snapshot.</b> Friends’ maps don’t update by themselves; they send a new link. Their plans and photos are never shared, only which countries.</li>
+  <li><b>Photo locations on iPhone.</b> Safari can remove locations from photos picked straight from the Photos library. Save them to Files first and pick from Files, or use a computer. Photos with location turned off when taken can’t be placed.</li>
+  <li><b>Flight import</b> only recognizes airports with scheduled flights (about 3,200); rows with others are skipped and counted.</li>
+  <li><b>Compare is a snapshot</b> of countries only, not states, cities, flights or lists. Plans and photos are never shared.</li>
   <li><b>Video previews depend on the site.</b> Private or removed posts won’t play. Short TikTok links (vm.tiktok.com) only open in TikTok. Instagram may ask you to log in.</li>
   <li><b>iPhone can’t share into web apps.</b> Copy the link, then Paste.</li>
-  <li><b>Small countries show as dots</b> at world zoom (Singapore, Malta, most islands). Zoom in and the real shape takes over. Territories that the map data joins to another country (French Guiana, Réunion, Svalbard, Bonaire…) are split off so they fill only on their own.</li>
-  <li><b>First map load needs internet</b> (about 1 MB); after that it works offline.</li>
-  <li><b>States for 60 countries.</b> Smaller countries are whole-country only. Cities are those over about 150,000 people plus capitals; there’s no way to add your own place yet.</li>
-  <li><b>Compare</b> shares countries only, not states, cities or airports.</li></ul>
-  <p class="tiny muted">Map data: Natural Earth (public domain); Indonesia’s provinces from geoBoundaries (CC BY 4.0); airports from OurAirports (public domain).</p>
+  <li><b>Small countries show as dots</b> at world zoom. Territories that the map data joins to another country (French Guiana, Réunion, Svalbard, Bonaire…) are split off so they fill only on their own.</li>
+  <li><b>Cities</b> are those over about 150,000 people plus capitals; there’s no way to add your own place yet.</li>
+  <li><b>Lists</b> are a snapshot: UNESCO sites as of August 2026.</li>
+  <li><b>Share picture flags</b> may not show on some Windows computers.</li>
+  <li><b>First map load needs internet</b>; after that it works offline.</li></ul>
+  <p class="tiny muted">Data: Natural Earth (public domain); Indonesia’s provinces from geoBoundaries (CC BY 4.0); airports from OurAirports (public domain); UNESCO sites from UNESCO’s list via an open snapshot; US national parks from Wikipedia’s list.</p>
   <button class="btn ghost" data-act="tour">Replay the tour</button></div>`},async click(e,t){if(t&&t.dataset.act==='tour'){while(stack.length)await back();startTour()}}});
 }
 function openShareIn(url){
@@ -799,39 +1194,52 @@ function demoState(){
   ['JP','PE','IS','NZ','ID','VN','AR','ZA'].forEach(c=>mark(c,{want:true}));
   mark('JO',{been:true,lived:true,livedNote:'Amman, 2021–2022'});mark('LB',{been:true});
   mark('US',{been:true,lived:true,regions:{'US-NC':{been:true,lived:true},'US-TX':{been:true},'US-NY':{been:true},'US-FL':{been:true},'US-GA':{been:true},'US-TN':{been:true},'US-CA':{want:true},'US-WA':{want:true}},cities:{'Charlotte':{been:true,lived:true,lat:35.205,lon:-80.83,adm:'North Carolina'},'New York':{been:true,lat:40.75,lon:-73.98,adm:'New York'}}});
+  mark('BE',{drive:true});mark('NL',{drive:true});d.countries.US.regions['US-SC']={drive:true};d.countries.US.regions['US-VA']={drive:true};
   d.countries.ID.regions={'ID-BA':{want:true}};d.countries.ID.want=true;
   d.sections=[{id:'s1',cc:'JP',name:'Kyoto'},{id:'s2',cc:'JP',name:'Tokyo'}];
   d.plans=[{id:'p1',cc:'JP',sec:'s1',title:'Temples in spring',start:'2027-04-02',end:'2027-04-06',status:'idea',notes:'Fushimi Inari at sunrise.',links:[{url:'https://www.tiktok.com/@example/video/7234567890123456789',note:'Hidden temple'},{url:'https://www.instagram.com/reel/C1a2B3c4D5e/',note:'Tea house'}],photos:[],todos:[{t:'Rail pass',done:true},{t:'Book ryokan',done:false}]},
     {id:'p2',cc:'JP',sec:'s2',title:'Food crawl',start:'',end:'',status:'idea',notes:'',links:[],photos:[],todos:[]},
     {id:'p3',cc:'PE',sec:'',title:'Inca Trail',start:'2027-06-10',end:'2027-06-14',status:'booked',notes:'',links:[],photos:[],todos:[{t:'Permit',done:true}]}];
   d.airports={CLT:{n:6,name:'Charlotte Douglas International Airport',city:'Charlotte',cc:'US',lat:35.214,lon:-80.943},ATL:{n:3,name:'Hartsfield Jackson Atlanta International Airport',city:'Atlanta',cc:'US',lat:33.637,lon:-84.428},AMM:{n:2,name:'Queen Alia International Airport',city:'Amman',cc:'JO',lat:31.723,lon:35.993},CDG:{n:1,name:'Charles de Gaulle International Airport',city:'Paris',cc:'FR',lat:49.013,lon:2.55},IST:{n:1,name:'Istanbul Airport',city:'Istanbul',cc:'TR',lat:41.261,lon:28.742}};
+  d.settings.home='US';
+  const V=(cc,a,b,n)=>{(d.countries[cc].visits||(d.countries[cc].visits=[])).push({id:uid(),start:a,end:b,note:n||''})};
+  V('FR','2019-06-02','2019-06-09','Paris and Lyon');V('IT','2019-06-09','2019-06-15');V('MX','2021-03-12','2021-03-19','Oaxaca');V('JO','2021-08-20','2022-06-01','Lived in Amman');V('LB','2022-02-11','2022-02-14');V('EG','2022-04-03','2022-04-08');V('TR','2023-05-01','2023-05-06','Istanbul');V('GR','2023-05-06','2023-05-12');V('ES','2024-07-01','2024-07-08');V('PT','2024-07-08','2024-07-12');V('MA','2025-03-20','2025-03-27');V('BR','2025-11-02','2025-11-10');
+  d.flights=[['CLT','CDG','2019-06-01',6380],['FCO','CLT','2019-06-15',7350],['CLT','AMM','2021-08-19',10120],['AMM','CAI','2022-04-03',490],['ATL','IST','2023-04-30',9200],['CLT','LIS','2024-07-01',5880]].map(([a,b,dt,km],i)=>({id:'df'+i,date:dt,from:a,to:b,fl:[0,0],tl:[0,0],fcc:'',tcc:'',airline:'',num:'',km}));
+  const LL={CLT:[35.214,-80.943],CDG:[49.013,2.55],FCO:[41.8,12.239],AMM:[31.723,35.993],CAI:[30.122,31.406],ATL:[33.637,-84.428],IST:[41.261,28.742],LIS:[38.781,-9.136]};d.flights.forEach(f=>{f.fl=LL[f.from];f.tl=LL[f.to]});
+  d.lists={wonders:{W2:'2021-09-01',W6:'2019-06-12',W8:'2022-04-05'},unesco:{},capitals:{}};
   d.friends=[{id:'f1',name:'Sam',been:['US','MX','JP','KR','TH','VN','FR','IT','PE'],want:['IS','NZ'],lived:['KR'],added:Date.now()}];
   return d;
 }
 // Each step: [tab, open, selector, title, text, opts]. open: '' | 'country:US' | 'settings' | 'airports' | 'plan:p1'. No selector = centered card.
 const TOUR=[
-  ['map','',null,'Welcome to Roamd','A quick look at what it can do. It takes about two minutes, and you can skip it any time. The places on the map are samples for the tour; they disappear when it ends.'],
-  ['map','','#mapBox','Your map','It fills in as you mark places: a color for Been, Want to go and Lived. Tap any country to open it. Pinch or use + and − to zoom.'],
+  ['map','',null,'Welcome to Roamd','A quick look at what it can do. It takes about three minutes, and you can skip it any time. The places on the map are samples for the tour; they disappear when it ends.'],
+  ['map','','#mapBox','Your map','It fills in as you mark places: a color for Been, Want to go and Lived, and your home country in its own color. Tap any country to open it. Pinch or use + and − to zoom.'],
   ['map','','#legend','Colors and counts','The numbers count countries. A country with marked states or cities turns a lighter shade, and the marked parts show in full color.'],
   ['map','','#regionSel','Jump to a region','Zoom straight to Europe, Southeast Asia, the Middle East and the rest.'],
-  ['map','','#zplane','Airports','Log every airport you fly in, out of or through. A small plane marks each one on the map, with a count of visits.'],
-  ['list','','#clist .crow .qb','Quick marking','Tap Been, Want or Lived right on a country’s row. Tap its name to open it.'],
+  ['map','','#zfull','Full screen','Make the map fill the screen. Back, or the same button, returns. Country maps and Compare maps have one too.'],
+  ['map','','#zplane','Airports and flights','Log airports and whole flights. Planes mark airports and arcs show your routes. Import your history from Flighty, OpenFlights or myFlightradar24.'],
+  ['list','','#clist .crow .qb','Quick marking','Tap Been, Want, Lived or Drove right on a country’s row. Drove through is for places you only passed through; it has its own color and doesn’t count toward your total unless you turn that on.'],
   ['list','','#clist .stctl','States, region by region','Turn states and provinces on or off for a whole region here, or choose which countries keep them.'],
-  ['list','country:US','.stoggles','A country’s page','Mark the whole country, add when you went, notes and photos.'],
-  ['list','country:US','#cmini','States and provinces','Tap a state to mark it. 213 countries have them, including all 38 of Indonesia’s provinces. The switch above turns them off for this country.'],
-  ['list','country:US','#cityQ','Cities','Find a city and mark it; it gets a dot on the map. The list has cities over about 150,000 people plus capitals.'],
-  ['list','country:US','.subrow .btns','Plans for this country','Group plans into sections you name, like a city, a route or one trip.'],
-  ['plans','','#plist .pcountry','Plans','All your plans, by region, then country, then your sections.'],
-  ['plans','plan:p1','.vids','Reels and TikToks','Paste a reel, TikTok or YouTube link into a plan and watch it right there. Add dates, a status, photos and a checklist too.'],
+  ['list','','#photoImp','From your photos','Pick trip photos and Roamd reads where and when each was taken, on this phone. It suggests countries, states, cities and visit dates for you to confirm.'],
+  ['list','country:US','.stoggles','A country’s page','Mark the whole country, add notes and photos.'],
+  ['list','country:US','.visitsbox','Visits with dates','Add each trip with its dates. Visits build your timeline, days away and countries-per-year stats.'],
+  ['list','country:US','#cmini','States and provinces','Tap a state to mark it. 213 countries have them, including all 38 of Indonesia’s provinces. The corner button opens it full screen.'],
+  ['list','country:US','#cityQ','Cities','Find a city and mark it; it gets a dot on the map.'],
+  ['plans','','#plist .pcountry','Plans','All your plans, by region, then country, then sections you name, like a city or one trip.'],
+  ['plans','plan:p1','.vids','Reels and TikToks','Paste a reel, TikTok or YouTube link and watch it right in the plan. Add dates, photos and a checklist, and drop in your packing list with one tap.'],
   ['compare','','#cmpBox .card','Compare with friends','Share your map as a link. A friend who opens it sees where you’ve both been, where only one of you has, and places you both want to go.'],
-  ['stats','','#statsBox .hero','Stats','How much of the world you’ve seen, region by region, plus states, cities and airports.'],
+  ['stats','','#statsBox .hero','Stats','How much of the world you’ve seen, continents, days away, flights and more.'],
+  ['stats','','#stBtns','Share and look back','Make a picture of your map and numbers for Instagram, or open your timeline and replay your map year by year.'],
+  ['stats','','#statBadges','Badges','Milestones like 25 countries, every continent, all 50 states or flying around the world. Ones still to earn show your progress.'],
+  ['stats','','#statLists','Lists to tick off','All 1,273 UNESCO World Heritage sites, world capitals, the New 7 Wonders and the 63 US national parks. Each can show on your map.'],
   ['map','settings','.pal-grid','Make it yours','Pick map colors, including two color-blind friendly sets, or choose your own three on a color wheel.'],
-  ['map','settings','#stTree','States everywhere, or not','One switch for all states and provinces, one per region with Choose countries beside it, and one on each country’s page. Disputed territories have their own switch just below.'],
+  ['map','settings','#cntBox','How you count','Count England, Scotland, Wales and Northern Ireland separately, count territories, and set your home country and its color.'],
+  ['map','settings','#stTree','States everywhere, or not','One switch for all states and provinces, one per region with Choose countries beside it, and one on each country’s page. Disputed territories have their own switch.'],
   ['map','settings','[data-act=backup]','Keep a backup','Everything stays on this phone, with no account. Save a backup file now and then, photos included, and restore it on a new phone.'],
   ['map','','#themeBtn','Light or dark','Tap to switch. Settings can also follow your phone.'],
   ['map','',null,'Limitation: one phone at a time','Nothing syncs between devices yet. Use a backup file to move everything to another phone.',{lim:true}],
-  ['map','',null,'Limitation: videos and iPhone','Videos play inside a plan when the post allows it; private posts and short TikTok links only open in their apps. iPhone can’t share straight into Roamd, so copy the link and tap Paste.',{lim:true}],
-  ['map','',null,'Limitation: Compare','A friend’s map is a snapshot of countries only, not states, cities or airports. They send a new link when theirs changes.',{lim:true}],
+  ['map','',null,'Limitation: photos and videos on iPhone','Safari on iPhone can remove locations from photos picked straight from Photos; pick them from the Files app instead. iPhone also can’t share straight into Roamd, so copy a video’s link and tap Paste.',{lim:true}],
+  ['map','',null,'Limitation: Compare','A friend’s map is a snapshot of countries only, not states, cities, flights or lists. They send a new link when theirs changes.',{lim:true}],
   ['map','','#helpBtn','Help is always here','Take this tour again, and see every limitation, from Help.'],
   ['map','',null,'You’re set','Start marking where you’ve been.'],
 ];
@@ -894,7 +1302,8 @@ function wire(){
   $('#setBtn').onclick=openSettings;$('#themeBtn').onclick=()=>{S.settings.theme=isDark()?'light':'dark';save();applyTheme()};$('#helpBtn').onclick=openHelp;
   $('#zin').onclick=()=>mapReady&&mapSvg.transition().call(zoom.scaleBy,1.6);
   $('#zout').onclick=()=>mapReady&&mapSvg.transition().call(zoom.scaleBy,1/1.6);
-  $('#zplane').onclick=openAirports;
+  $('#zplane').onclick=openAirports;$('#zfull').onclick=toggleMapFS;$('#photoImp').onclick=openPhotoImport;
+  $('#statsBox').onclick=e=>{const b=e.target.closest('[data-st]');if(b){const a=b.dataset.st;if(a==='share')openSharePicture();else if(a==='timeline')openTimeline();else if(a==='flights')openFlights();else if(a==='import')openImportFlights();else if(a==='home')pickCountry('Your home country',cc=>{S.settings.home=cc;save()});return}const l=e.target.closest('[data-list]');if(l)openList(l.dataset.list)};
   $('#zreset').onclick=()=>{$('#regionSel').value='';zoomRegion('')};
   $('#regionSel').innerHTML='<option value="">Whole world</option>'+REGIONS.map(([rc,rn])=>`<option value="${rc}">${rn}</option>`).join('');
   $('#regionSel').onchange=e=>zoomRegion(e.target.value);

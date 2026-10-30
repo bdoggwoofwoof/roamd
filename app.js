@@ -172,7 +172,11 @@ function sizeDots(){if(!mapDots)return;const u=pxPerUnit();
   mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}
 // country outlines in state mode: thin when a country is small on screen, full weight once it's big
 function sizeBorders(){if(!gBord||!mapSvg)return;const u=pxPerUnit(),zf=Math.max(.25,Math.min(1,.1+.09*curK));gBord.selectAll('path').style('stroke-width',d=>`calc(var(--cbmax) * ${Math.max(.18,Math.min(zf,(d.sz||0)*u/140)).toFixed(3)})`)}
-const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc));return t?(partial(cc)?' t-':' s-')+t:''};
+// the big map's own on/off view for states (doesn't change the States setting)
+const stView=()=>S.settings.stView!==false;
+const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc));return t?(stView()&&partial(cc)?' t-':' s-')+t:''};
+function syncStBtn(){const b=$('#zstate');if(!b)return;const any=stCfg().stOn;b.hidden=!any;b.classList.toggle('on',stView());b.setAttribute('aria-pressed',stView());b.setAttribute('aria-label',stView()?'Hide states on the map':'Show states on the map')}
+function toggleStView(){S.settings.stView=!stView();save();syncStBtn();paintMap();toast(stView()?'States shown on the map':'States hidden on the map (your marks are kept)')}
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
   mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
 function counts(){let been=0,want=0,lived=0,terr=0,drive=0;for(const c of C){if(c.disp)continue;const s=cs(c.cc);if(s.been){c.core?been++:terr++}if(s.want&&!s.been&&!s.drive)want++;if(s.lived)lived++;if(s.drive&&(c.core||S.settings.countTerr))drive++}const t=countTotals();return{been:t.been,total:t.total,want,lived,drive,terr:S.settings.countTerr?0:terr}}
@@ -349,7 +353,8 @@ function planeSegHTML(){return`<div class="seg" role="group" aria-label="Airplan
 function setPlaneMode(v){S.settings.planeMode=v;S.settings.planes=v!=='off';save()}
 async function paintRegions(){
   if(!mapReady)return;const my=++regBusy;const idx=await regIndex();const data=[];
-  for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!Object.keys(r).length||!idx[cc]||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}f.forEach(x=>data.push({cc,id:x.properties.id,f:x}))}
+  syncStBtn();
+  for(const cc of stView()?Object.keys(S.countries):[]){const r=cs(cc).regions;if(!r||!Object.keys(r).length||!idx[cc]||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}f.forEach(x=>data.push({cc,id:x.properties.id,f:x}))}
   if(my!==regBusy)return;
   const ccs=new Set(data.map(d=>d.cc));
   gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>d.d).attr('class','cb');sizeBorders();
@@ -1227,6 +1232,7 @@ const TOUR=[
   ['map','','#legend','Colors and counts','The numbers count countries. A country with marked states or cities turns a lighter shade, and the marked parts show in full color.'],
   ['map','','#regionSel','Jump to a region','Zoom straight to Europe, Southeast Asia, the Middle East and the rest.'],
   ['map','','#zfull','Full screen','Make the map fill the screen. Back, or the same button, returns. Country maps and Compare maps have one too.'],
+  ['map','','#zstate','States on or off','Show or hide states and provinces on the big map. It only changes the view: your marks and the States setting stay as they are.'],
   ['map','','#zplane','Airports and flights','Log airports and whole flights. Planes mark airports and arcs show your routes. Import your history from Flighty, OpenFlights or myFlightradar24.'],
   ['list','','#clist .crow .qb','Quick marking','Tap Been, Want, Lived or Drove right on a country’s row. Drove through is for places you only passed through; it has its own color and doesn’t count toward your total unless you turn that on.'],
   ['list','','#clist .stctl','States, region by region','Turn states and provinces on or off for a whole region here, or choose which countries keep them.'],
@@ -1312,7 +1318,7 @@ function wire(){
   $('#setBtn').onclick=openSettings;$('#themeBtn').onclick=()=>{S.settings.theme=isDark()?'light':'dark';save();applyTheme()};$('#helpBtn').onclick=openHelp;
   $('#zin').onclick=()=>mapReady&&mapSvg.transition().call(zoom.scaleBy,1.6);
   $('#zout').onclick=()=>mapReady&&mapSvg.transition().call(zoom.scaleBy,1/1.6);
-  $('#zplane').onclick=openAirports;$('#zfull').onclick=toggleMapFS;$('#photoImp').onclick=openPhotoImport;
+  $('#zplane').onclick=openAirports;$('#zstate').onclick=toggleStView;$('#zfull').onclick=toggleMapFS;$('#photoImp').onclick=openPhotoImport;
   $('#statsBox').onclick=e=>{const b=e.target.closest('[data-st]');if(b){const a=b.dataset.st;if(a==='share')openSharePicture();else if(a==='timeline')openTimeline();else if(a==='flights')openFlights();else if(a==='import')openImportFlights();else if(a==='home')pickCountry('Your home country',cc=>{S.settings.home=cc;save()});return}const l=e.target.closest('[data-list]');if(l)openList(l.dataset.list)};
   $('#zreset').onclick=()=>{$('#regionSel').value='';zoomRegion('')};
   $('#regionSel').innerHTML='<option value="">Whole world</option>'+REGIONS.map(([rc,rn])=>`<option value="${rc}">${rn}</option>`).join('');

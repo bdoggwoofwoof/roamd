@@ -127,6 +127,7 @@ summary .chev{transition:transform .2s;color:var(--muted)}details[open]>summary 
 .plane{fill:var(--ink);stroke:var(--card);stroke-width:1.1;vector-effect:non-scaling-stroke;paint-order:stroke;cursor:pointer}
 .ic.lgp{width:15px;height:15px;fill:var(--ink);stroke:none}
 #zplane .ic{fill:currentColor;stroke:none;width:19px;height:19px}
+#zstate .ic{width:20px;height:20px}#zstate.on{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}#zstate:not(.on) .ic{opacity:.55}#zstate[hidden]{display:none}
 .cmini{position:relative;min-height:140px;background:var(--sea);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .mini{display:block;width:100%;max-height:52vh}
 .mini .rg{fill:var(--land);stroke:var(--card);stroke-width:1}
@@ -311,7 +312,7 @@ body.tour-on main,body.tour-on #sheets{transition:opacity .2s}body.tour-fading m
   <section id="v-map" class="view">
     <div id="nag"></div>
     <div class="mapwrap"><div id="mapBox"><div class="loading">Loading map…</div></div>
-      <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Whole world">⟲</button><button id="zfull" aria-label="Full screen"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button><button id="zplane" aria-label="Airports"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/></svg></button></div></div>
+      <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Whole world">⟲</button><button id="zfull" aria-label="Full screen"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button><button id="zstate" aria-label="Hide states on the map" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5l5-2 6 2 5-2v16l-5 2-6-2-5 2z"/><path d="M9 3v16M15 5v16M4 12h5M15 11h5"/></svg></button><button id="zplane" aria-label="Airports"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/></svg></button></div></div>
     <div class="regionbar"><select id="regionSel" aria-label="Zoom to region"></select></div>
     <div class="legend" id="legend"></div>
   </section>

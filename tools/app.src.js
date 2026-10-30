@@ -150,7 +150,7 @@ async function initMap(){
   gFlight=mapG.append('g').attr('class','flights');gList=mapG.append('g').attr('class','lmks');gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
   mapPaths.on('click',(e,d)=>{if(d.cc)openCountry(d.cc)});
   mapDots.on('click',(e,d)=>openCountry(d.cc));
-  zoom=d3.zoom().scaleExtent([1,24]).translateExtent([[-200,-120],[MW+200,MH+120]]).on('zoom',e=>{mapG.attr('transform',e.transform);curK=e.transform.k;sizeDots()});
+  zoom=d3.zoom().scaleExtent([1,128]).translateExtent([[-200,-120],[MW+200,MH+120]]).on('zoom',e=>{mapG.attr('transform',e.transform);curK=e.transform.k;sizeDots()});
   mapSvg.call(zoom).on('dblclick.zoom',null);
   mapReady=true;paintMap();fitStart();
 }
@@ -685,7 +685,7 @@ function setMapFS(on){if(on===fsOn)return;fsOn=on;$('.mapwrap').classList.toggle
 function toggleMapFS(){if(fsOn)history.back();else{history.pushState({fs:1},'');setMapFS(true)}}
 window.addEventListener('popstate',()=>{if(fsOn&&!stack.length&&!(history.state&&history.state.fs))setMapFS(false)});
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&fsOn&&!stack.length&&history.state&&history.state.fs)history.back()});
-function zoomable(svg){const g=svg.querySelector('g.zg');if(!g)return;const z=d3.zoom().scaleExtent([1,24]).on('zoom',e=>g.setAttribute('transform',e.transform));d3.select(svg).call(z).on('dblclick.zoom',null);svg.classList.add('zoomy')}
+function zoomable(svg){const g=svg.querySelector('g.zg');if(!g)return;const z=d3.zoom().scaleExtent([1,64]).on('zoom',e=>g.setAttribute('transform',e.transform));d3.select(svg).call(z).on('dblclick.zoom',null);svg.classList.add('zoomy')}
 function openRegionMapFS(cc,onChange){
   let sel='';
   sheet({

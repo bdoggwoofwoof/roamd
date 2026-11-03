@@ -19,11 +19,11 @@
 /* Atlas design system (from the Roamd Atlas pilot). Old variable names kept: --bg is paper, --muted is quiet text, --line is a rule, --accent is ink (the interface accent). */
 :root{--bg:#f5f1e7;--card:#fbf9f3;--ink:#1f2a33;--ink-2:#56616a;--muted:#646b67;--line:rgba(31,42,51,.12);--border:rgba(31,42,51,.30);--grat:rgba(31,42,51,.08);--land:#fbf8f0;--sea:#dfe5e1;
 --been:#3b887c;--want:#c99a2e;--lived:#5e9fd4;--drive:#94a783;--been-ink:#fff;--want-ink:#1f2a33;--lived-ink:#1f2a33;--drive-ink:#1f2a33;--accent:#1f2a33;--accent-ink:#f5f1e7;--soft:rgba(31,42,51,.06);--danger:#9e4f30;--clay:#9e4f30;
---both:#3b887c;--mine:#1f2a33;--them:#9e4f30;--shadow:0 1px 2px rgba(31,42,51,.07),0 8px 24px rgba(31,42,51,.10);color-scheme:light;
+--both:#3b887c;--mine:#2f6fa3;--them:#9e4f30;--shadow:0 1px 2px rgba(31,42,51,.07),0 8px 24px rgba(31,42,51,.10);color-scheme:light;
 --t-xs:11px;--t-sm:12.5px;--t-md:14px;--t-base:15px;--t-lg:18px;--t-xl:24px;--t-2xl:32px;--t-3xl:56px;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--gutter:18px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-pill:999px;
 --font-display:"Newsreader","Iowan Old Style","Palatino Linotype",Georgia,serif;--font-sans:"Archivo","Helvetica Neue",Arial,system-ui,sans-serif;--font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#13181d;--card:#1a2128;--ink:#ece6da;--ink-2:#a9b0b3;--muted:#858f95;--line:rgba(236,230,218,.12);--border:rgba(236,230,218,.26);--grat:rgba(236,230,218,.06);--land:#252e37;--sea:#0e1317;--been:#5fb2a4;--want:#e2b75a;--lived:#86bde8;--drive:#98aa8a;--been-ink:#13181d;--want-ink:#13181d;--lived-ink:#13181d;--drive-ink:#13181d;--accent:#ece6da;--accent-ink:#13181d;--soft:rgba(236,230,218,.07);--danger:#e08b67;--clay:#e08b67;--both:#5fb2a4;--mine:#ece6da;--them:#e08b67;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#13181d;--card:#1a2128;--ink:#ece6da;--ink-2:#a9b0b3;--muted:#858f95;--line:rgba(236,230,218,.12);--border:rgba(236,230,218,.26);--grat:rgba(236,230,218,.06);--land:#252e37;--sea:#0e1317;--been:#5fb2a4;--want:#e2b75a;--lived:#86bde8;--drive:#98aa8a;--been-ink:#13181d;--want-ink:#13181d;--lived-ink:#13181d;--drive-ink:#13181d;--accent:#ece6da;--accent-ink:#13181d;--soft:rgba(236,230,218,.07);--danger:#e08b67;--clay:#e08b67;--both:#5fb2a4;--mine:#ece6da;--them:#e08b67;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#13181d;--card:#1a2128;--ink:#ece6da;--ink-2:#a9b0b3;--muted:#858f95;--line:rgba(236,230,218,.12);--border:rgba(236,230,218,.26);--grat:rgba(236,230,218,.06);--land:#252e37;--sea:#0e1317;--been:#5fb2a4;--want:#e2b75a;--lived:#86bde8;--drive:#98aa8a;--been-ink:#13181d;--want-ink:#13181d;--lived-ink:#13181d;--drive-ink:#13181d;--accent:#ece6da;--accent-ink:#13181d;--soft:rgba(236,230,218,.07);--danger:#e08b67;--clay:#e08b67;--both:#5fb2a4;--mine:#86bde8;--them:#e08b67;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#13181d;--card:#1a2128;--ink:#ece6da;--ink-2:#a9b0b3;--muted:#858f95;--line:rgba(236,230,218,.12);--border:rgba(236,230,218,.26);--grat:rgba(236,230,218,.06);--land:#252e37;--sea:#0e1317;--been:#5fb2a4;--want:#e2b75a;--lived:#86bde8;--drive:#98aa8a;--been-ink:#13181d;--want-ink:#13181d;--lived-ink:#13181d;--drive-ink:#13181d;--accent:#ece6da;--accent-ink:#13181d;--soft:rgba(236,230,218,.07);--danger:#e08b67;--clay:#e08b67;--both:#5fb2a4;--mine:#86bde8;--them:#e08b67;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);color-scheme:dark}
 :root{--been-t:color-mix(in srgb,var(--been) 30%,var(--land));--want-t:color-mix(in srgb,var(--want) 24%,var(--land));--drive-t:color-mix(in srgb,var(--drive) 32%,var(--land))}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:var(--t-base);line-height:1.5;font-stretch:96%;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
@@ -352,12 +352,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 /* status swatches: the four statuses differ in pattern as well as color */
 .dot{width:14px;height:14px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--border)}
 .dot.been{background:var(--been);box-shadow:none}
-.dot.want{background:repeating-linear-gradient(135deg,var(--want) 0 1.6px,var(--want-t) 1.6px 4.6px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--want) 60%,transparent)}
+.dot.want{background:var(--want);box-shadow:none}
 .dot.lived{background:var(--lived);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 60%,transparent),inset 0 0 0 3px var(--land)}
-.dot.drive{background:radial-gradient(circle,var(--drive) 0 .9px,transparent 1.2px) 0 0/4px 4px,var(--drive-t);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--drive) 60%,transparent)}
+.dot.drive{background:var(--drive);box-shadow:none}
 .dot.both{background:var(--both);box-shadow:none}
-.dot.mine{background:repeating-linear-gradient(0deg,var(--mine) 0 1.2px,var(--land) 1.2px 4px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mine) 50%,transparent)}
-.dot.them{background:repeating-linear-gradient(45deg,var(--them) 0 1.4px,var(--land) 1.4px 4.2px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--them) 55%,transparent)}
+.dot.mine{background:var(--mine);box-shadow:none}
+.dot.them{background:var(--them);box-shadow:none}
 /* status buttons on a place: 48px, label first, check when on */
 .stoggles{gap:var(--s2)}
 .st{position:relative;justify-content:flex-start;gap:10px;min-height:48px;padding:0 var(--s3);border-radius:var(--r-md);border:1px solid var(--border);background:var(--card);font-weight:600;font-size:var(--t-md)}
@@ -390,10 +390,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 .grat{fill:none;stroke:var(--grat);stroke-width:.8;vector-effect:non-scaling-stroke;pointer-events:none}
 .c{fill:var(--land);stroke:var(--border);stroke-width:.45;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .c.s-lived,.dotg.s-lived .dm{stroke:color-mix(in srgb,var(--ink) 55%,transparent)}
-#mapBox .c.s-want,#mapBox .rg.s-want,#mapBox .dotg.s-want .dm{fill:url(#bWant)}
-#mapBox .c.s-drive,#mapBox .rg.s-drive,#mapBox .dotg.s-drive .dm{fill:url(#bDrive)}
-.small .c.s-want,.mini .rg.s-want,.fsmap .c.s-want,.fsmap .rg.s-want{fill:url(#pWant)}
-.small .c.s-drive,.mini .rg.s-drive,.fsmap .c.s-drive,.fsmap .rg.s-drive{fill:url(#pDrive)}
+
+
+
+
 .c.t-been{fill:var(--been-t)}.c.t-want{fill:var(--want-t)}.c.t-drive{fill:var(--drive-t)}.c.t-lived{fill:color-mix(in srgb,var(--lived) 34%,var(--land))}
 .pw-bg{fill:var(--want-t)}.pw-ln{stroke:var(--want)}.pd-bg{fill:var(--drive-t)}.pd-dot{fill:var(--drive)}
 .pm-bg{fill:color-mix(in srgb,var(--ink) 14%,var(--land))}.pm-ln{stroke:var(--ink-2)}
@@ -470,8 +470,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 .cmpsec .btns{margin:var(--s2) 0}
 .cmpleg{margin-top:var(--s3)}
 .small .c.s-both,.fsmap .c.s-both,.cdot.s-both{fill:var(--both)}
-.small .c.s-mine,.fsmap .c.s-mine{fill:url(#pMe)}.cdot.s-mine{fill:var(--ink-2)}
-.small .c.s-them,.fsmap .c.s-them{fill:url(#pThem)}.cdot.s-them{fill:var(--them)}
+.cdot.s-mine{fill:var(--ink-2)}
+.cdot.s-them{fill:var(--them)}
 .danger-zone{margin-top:var(--s6);padding-top:var(--s4);border-top:1px solid var(--line)}
 .brand .mark{width:28px;height:28px;flex:none}
 </style>

@@ -217,7 +217,7 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
-  atlas:['Atlas','Teal, ochre stripes, Carolina blue for Lived, sage dots',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
+  atlas:['Atlas','Teal, ochre, Carolina blue for Lived, sage',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
   classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
   sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
   ocean:['Ocean','',{been:'#2ec4d6',want:'#9be564',lived:'#6f8cff',drive:'#ffb86b'},{been:'#00838f',want:'#4f9d2a',lived:'#3352d6',drive:'#d9822b'}],

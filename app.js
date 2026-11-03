@@ -348,7 +348,7 @@ function regionsBlockHTML(cc,sel){
     h+=`<div class="subrow"><h4 class="sub">${rword(cc)} <small>${nb} of ${n} been</small></h4></div>
     <div class="cminiwrap"><div class="cmini" id="cmini"><div class="loading">Loading map…</div></div><button class="iconbtn sm mfs" data-act="regfs" aria-label="Full screen map">${ic('expand')}</button></div>
     <div class="rsel">${sr?`<b>${esc(sr[1])}</b><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${rs(cc,sr[0])[k]?' on':''}" data-rq="${sr[0]}" data-k="${k}">${QL[k]}</button>`).join('')}</span>`:`<span class="muted small">Tap a ${rword(cc).split(' ')[0].toLowerCase().replace(/s$/,'').replace(/ie$/,'y')} on the map to mark it, or use the list.</span>`}</div>
-    <details class="rlist"><summary>All ${n} ${rword(cc).toLowerCase()}</summary><div class="card">${idx.map(([id,name])=>{const x=rs(cc,id);return`<div class="crow"><span class="cmain"><span class="cname">${esc(name)}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-rq="${id}" data-k="${k}">${QL[k]}</button>`).join('')}</span></div>`}).join('')}</div></details>`}
+    <details class="rlist" open><summary>All ${n} ${rword(cc).toLowerCase()}</summary><div class="card">${idx.map(([id,name])=>{const x=rs(cc,id);return`<div class="crow"><span class="cmain"><span class="cname">${esc(name)}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-rq="${id}" data-k="${k}">${QL[k]}</button>`).join('')}</span></div>`}).join('')}</div></details>`}
   const mine=Object.entries(cs(cc).cities||{});
   h+=`<h4 class="sub">Cities</h4>${mine.length?`<div class="card">${mine.map(([n,x])=>cityRow(cc,[n,x.lat,x.lon,x.adm])).join('')}</div>`:''}
   <div class="pickq0"><input id="cityQ" placeholder="Find a city in ${esc(BY[cc].name)}" autocomplete="off"></div><div id="cres"></div>`;
@@ -801,18 +801,21 @@ function newSection(cc){const name=(prompt('Section name (a city, a route, one t
 /* ---------- country sheet ---------- */
 async function openCountry(cc,selR){
   const c=BY[cc];if(!c)return;
-  await regIndex();let sel=selR||'',cq='';
+  await regIndex();let sel=selR||'',cq='',livedEdit=false;
   sheet({
     render(el){
       const s=cs(cc),secs=S.sections.filter(x=>x.cc===cc),plans=S.plans.filter(p=>p.cc===cc);
       const loose=plans.filter(p=>!secs.some(x=>x.id===p.sec));
-      el.innerHTML=`${shead(`<span class="flag big">${flag(cc)}</span><span class="tt"><b>${esc(c.name)}</b><small>${RNAME[c.reg]}${c.core?'':' · territory'}</small></span>`)}
+      // Order follows the atlas pilot: status first, then where you lived, then states and cities, then the record of visits.
+      const editing=s.lived&&(livedEdit||!s.livedNote);
+      el.innerHTML=`${shead(`<span class="flag big">${flag(cc)}</span><span class="tt"><b>${esc(c.name)}</b><small>${RNAME[c.reg]}${c.core?'':' · territory'}${cc===S.settings.home?' · home country':''}</small></span>`)}
       <div class="sbody">
-        <div class="stoggles">${KEYS.map(k=>`<button class="st st-${k}${s[k]?' on':''}" data-act="tog" data-k="${k}"><i class="dot ${k}"></i>${KL[k]}</button>`).join('')}</div>
-        ${c.disp?'':`<div class="visitsbox">${visitsHTML(cc)}</div>`}
-        ${s.lived?`<label class="fld"><span>Where and when did you live there?</span><input data-f="livedNote" value="${esc(s.livedNote||'')}" placeholder="e.g. Amman, 2021–2022"></label>`:''}
-        <label class="fld"><span>Notes</span><textarea data-f="notes" rows="3" placeholder="Memories, people, places, food…">${esc(s.notes||'')}</textarea></label>
+        <div class="stoggles" role="group" aria-label="Status">${KEYS.map(k=>`<button class="st st-${k}${s[k]?' on':''}" data-act="tog" data-k="${k}" aria-pressed="${!!s[k]}"><i class="dot ${k}"></i>${KL[k]}</button>`).join('')}</div>
+        ${s.lived?(editing?`<div class="livedform"><label class="fld"><span>Where and when did you live there?</span><input data-f="livedNote" value="${esc(s.livedNote||'')}" placeholder="e.g. Amman, 2021–2022"></label>${s.livedNote?'<button class="btn sm ghost" data-act="liveddone">Done</button>':''}</div>`
+          :`<div class="livedline"><i class="dot lived" aria-hidden="true"></i><span class="lv"><b>${esc(s.livedNote)}</b><small>Where you lived</small></span><button class="btn sm ghost" data-act="livededit" aria-label="Edit where you lived">Edit</button></div>`):''}
         ${regionsBlockHTML(cc,sel)}
+        ${c.disp?'':`<div class="visitsbox">${visitsHTML(cc)}</div>`}
+        <label class="fld"><span>Notes</span><textarea data-f="notes" rows="3" placeholder="Memories, people, places, food…">${esc(s.notes||'')}</textarea></label>
         <h4 class="sub">Photos</h4>${gridHTML(s.photos||[])}
         <div class="subrow"><h4 class="sub">Plans</h4><span class="btns"><button class="btn sm ghost" data-act="newsec">${ic('folder')} Section</button><button class="btn sm" data-act="newplan">${ic('plus')} Plan</button></span></div>
         ${secs.map(x=>`<div class="secbox"><div class="sech">${ic('folder')}<b>${esc(x.name)}</b><button class="iconbtn sm" data-act="rensec" data-id="${x.id}" aria-label="Rename">${ic('pencil')}</button><button class="iconbtn sm" data-act="delsec" data-id="${x.id}" aria-label="Delete section">${ic('trash')}</button></div>${plans.filter(p=>p.sec===x.id).map(planRow).join('')}<button class="addline" data-act="newplan" data-sec="${x.id}">${ic('plus')} Plan in ${esc(x.name)}</button></div>`).join('')}
@@ -831,7 +834,9 @@ async function openCountry(cc,selR){
       const cqb=e.target.closest('[data-cq]');if(cqb){const n=cqb.dataset.cq,k=cqb.dataset.k,m=(cs(cc).cities||{})[n];const row=m?[n,m.lat,m.lon,m.adm]:((CITIES||{})[cc]||[]).find(r=>r[0]===n);if(row){setCity(cc,row,k,!ct(cc,n)[k]);this.refresh()}return}
       if(photoClick(e,()=>co(cc).photos||(co(cc).photos=[]),this))return;
       if(!t)return;const a=t.dataset.act;
-      if(a==='tog'){const k=t.dataset.k;setK(cc,k,!cs(cc)[k]);this.refresh()}
+      if(a==='tog'){const k=t.dataset.k;setK(cc,k,!cs(cc)[k]);this.refresh();const nb=this.el.querySelector(`.st[data-k="${k}"]`);nb&&nb.focus({preventScroll:true})}
+      else if(a==='livededit'){livedEdit=true;this.refresh();const i=this.el.querySelector('[data-f="livedNote"]');i&&i.focus()}
+      else if(a==='liveddone'){livedEdit=false;this.refresh()}
       else if(a==='addvisit'){const o=co(cc);(o.visits||(o.visits=[])).push({id:uid(),start:today(),end:today(),note:''});if(!o.been)setK(cc,'been',true);else save();this.refresh()}
       else if(a==='delvisit'){if(confirm('Remove this visit?')){const o=co(cc);o.visits=(o.visits||[]).filter(v=>v.id!==t.dataset.id);save();this.refresh()}}
       else if(a==='regfs'){openRegionMapFS(cc)}

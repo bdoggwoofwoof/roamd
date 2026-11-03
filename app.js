@@ -52,7 +52,7 @@ const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">
 /* ---------- storage ---------- */
 const LS='roamed.v1';
 let S;
-const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'blueridge',palV:3,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
+const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'blueridge',palV:3,liftV:1,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
 let dbp;
 function db(){return dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('roamed',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('photos',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
 async function idb(store,mode,fn){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(store,mode);let out;const r=fn(t.objectStore(store));if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
@@ -68,6 +68,7 @@ async function load(){
   const best=[a,b].filter(x=>x&&x.v).sort((x,y)=>(y.saved||0)-(x.saved||0))[0];
   S=Object.assign(blank(),best||{});const hadV=best&&best.settings&&best.settings.palV;S.settings=Object.assign(blank().settings,S.settings||{});
   if(best&&!hadV){if(!best.settings||!best.settings.palette||best.settings.palette==='classic')S.settings.palette='atlas';S.settings.palV=2}
+  if(best&&!S.settings.liftV){for(const cc of Object.keys(S.countries)){const c=S.countries[cc];for(const x of[...Object.values(c.regions||{}),...Object.values(c.cities||{})])for(const k of['lived','been','drive','want'])if(x[k]&&!c[k]&&!(k==='drive'&&(c.been||c.lived)))setFlags(c,k,true)}S.settings.liftV=1}
   if(best&&(S.settings.palV||0)<3){if(S.settings.palette==='atlas')S.settings.palette='blueridge';S.settings.palV=3}
 }
 let saveT;
@@ -81,6 +82,9 @@ const cs=cc=>S.countries[cc]||{};
 const co=cc=>S.countries[cc]||(S.countries[cc]={});
 function setK(cc,k,v){const o=co(cc);setFlags(o,k,v);save()}
 const tier=s=>s.lived?'lived':s.been?'been':s.drive?'drive':s.want?'want':'';
+// A country shows the highest status of itself, its states and its cities: Lived, then Been, then Drove through, then Want to go.
+const TORD=['lived','been','drive','want'];
+const ctier=cc=>{const c=cs(cc);let best=TORD.indexOf(tier(c));const see=x=>{const i=TORD.indexOf(tier(x));if(i>=0&&(best<0||i<best))best=i};Object.values(c.regions||{}).forEach(see);Object.values(c.cities||{}).forEach(see);return best<0?'':TORD[best]};
 
 /* ---------- sheets (stacked full-screen panels, back button aware) ---------- */
 const stack=[];let backWaiters=[];
@@ -197,12 +201,12 @@ function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.m
 function sizeDots(){if(!mapDots)return;const u=pxPerUnit();sizePatterns(u);
   // dots shrink away once you've zoomed in far enough to see the real shape
   mapDots.style('display',u>14?'none':null);
-  mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}
+  mapDots.select('.dm').attr('r',d=>(ctier(d.cc)?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}
 // country outlines in state mode: thin when a country is small on screen, full weight once it's big
 function sizeBorders(){if(!gBord||!mapSvg)return;const u=pxPerUnit(),zf=Math.max(.25,Math.min(1,.1+.09*curK));gBord.selectAll('path').style('stroke-width',d=>`calc(var(--cbmax) * ${Math.max(.18,Math.min(zf,(d.sz||0)*u/140)).toFixed(3)})`)}
 // the big map's own on/off view for states (doesn't change the States setting)
 const stView=()=>S.settings.stView!==false;
-const fillCls=cc=>{const t=tier(cs(cc));return t?(stView()&&partial(cc)?' t-':' s-')+t:''};
+const fillCls=cc=>{const t=ctier(cc);return t?' s-'+t:''};
 function syncStBtn(){const b=$('#zstate');if(!b)return;const any=stCfg().stOn;b.hidden=!any;b.classList.toggle('on',stView());b.setAttribute('aria-pressed',stView());b.setAttribute('aria-label',stView()?'Hide states on the map':'Show states on the map')}
 function toggleStView(){S.settings.stView=!stView();save();syncStBtn();paintMap();toast(stView()?'States shown on the map':'States hidden on the map (your marks are kept)')}
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
@@ -387,7 +391,7 @@ function paintInner(){
   if(!gInner)return;gInner.selectAll('*').remove();let i=0;
   const add=(d,cls)=>{const id='lv'+(i++);gInner.append('clipPath').attr('id',id).append('path').attr('d',d);gInner.append('path').attr('class','inner'+(cls||'')).attr('d',d).attr('clip-path',`url(#${id})`)};
   const partialOn=cc=>stView()&&partial(cc);
-  for(const p of PATHD){if(!p.cc||!cs(p.cc).lived||partialOn(p.cc))continue;add(bigPath(p.f))}
+  for(const p of PATHD){if(!p.cc||ctier(p.cc)!=='lived'||partialOn(p.cc))continue;add(bigPath(p.f))}
   gReg&&gReg.selectAll('path').each(function(d){if(d&&rs(d.cc,d.id).lived)add(this.getAttribute('d'),' r')});
 }
 function planeMode(){const m=S.settings.planeMode;return m||(S.settings.planes===false?'off':'all')}
@@ -648,11 +652,11 @@ async function makeSharePicture(kind){
   const top=story?ty0+110:210,mh=540;
   const proj=atlasProj().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
   ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=col.sea;ctx.fill();
-  const fillOf=cc=>{if(!cc)return col.land;const t=tier(cs(cc));if(!t)return col.land;return partial(cc)?mix(col[t],col.land,.38):col[t]};
+  const fillOf=cc=>{if(!cc)return col.land;const t=ctier(cc);return t?col[t]:col.land};
   for(const p of PATHD){ctx.beginPath();path(p.f);ctx.fillStyle=fillOf(p.cc);ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=.6;ctx.stroke()}
   for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}
     for(const x of f){const t=tier(r[x.properties.id]||{});if(!t)continue;ctx.beginPath();path(x);ctx.fillStyle=col[t];ctx.fill()}}
-  const ce=centroids();for(const d of DOTS){const t=tier(cs(d.cc));if(!t)continue;const p=ce[d.cc]&&proj([ce[d.cc][1],ce[d.cc][0]]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],6,0,7);ctx.fillStyle=col[t];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=2;ctx.stroke()}
+  const ce=centroids();for(const d of DOTS){const t=ctier(d.cc);if(!t)continue;const p=ce[d.cc]&&proj([ce[d.cc][1],ce[d.cc][0]]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],6,0,7);ctx.fillStyle=col[t];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=2;ctx.stroke()}
   if(planeMode()!=='off'){ctx.strokeStyle=mix(col.ink,col.sea,.55);ctx.lineWidth=1.4;const seen=new Set();for(const f of flights()){const k=[f.from,f.to].sort().join();if(seen.has(k))continue;seen.add(k);ctx.beginPath();path({type:'LineString',coordinates:[[f.fl[1],f.fl[0]],[f.tl[1],f.tl[0]]]});ctx.stroke()}}
   for(const cc of Object.keys(S.countries))for(const[,x]of Object.entries(cs(cc).cities||{})){if(!x.been)continue;const p=proj([x.lon,x.lat]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],4,0,7);ctx.fillStyle=col[tier(x)];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=1.5;ctx.stroke()}
   const n=countTotals(),conts=new Set(beenCCs().map(continentOf).filter(Boolean)).size,st=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.regions||{}).filter(x=>x.been).length,0),cit=Object.values(S.countries).reduce((a,s)=>a+Object.values(s.cities||{}).filter(x=>x.been).length,0),fs=flightStats();

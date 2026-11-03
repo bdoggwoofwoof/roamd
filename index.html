@@ -474,6 +474,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 .cdot.s-them{fill:var(--them)}
 .danger-zone{margin-top:var(--s6);padding-top:var(--s4);border-top:1px solid var(--line)}
 .brand .mark{width:28px;height:28px;flex:none}
+
+/* planned trips: a quiet grey that sits with Blue Ridge */
+:root{--plan:#8a959e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--plan:#7d8891}}
+:root[data-theme="dark"]{--plan:#7d8891}
+.c.s-plan,.dotg.s-plan .dm,.rg.s-plan{fill:var(--plan)}
+.dot.plan{background:var(--plan);box-shadow:none}
 </style>
 </head>
 <body>

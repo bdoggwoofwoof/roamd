@@ -84,7 +84,8 @@ function setK(cc,k,v){const o=co(cc);setFlags(o,k,v);save()}
 const tier=s=>s.lived?'lived':s.been?'been':s.drive?'drive':s.want?'want':'';
 // A country shows the highest status of itself, its states and its cities: Lived, then Been, then Drove through, then Want to go.
 const TORD=['lived','been','drive','want'];
-const ctier=cc=>{const c=cs(cc);let best=TORD.indexOf(tier(c));const see=x=>{const i=TORD.indexOf(tier(x));if(i>=0&&(best<0||i<best))best=i};Object.values(c.regions||{}).forEach(see);Object.values(c.cities||{}).forEach(see);return best<0?'':TORD[best]};
+const ctier=cc=>{const c=cs(cc);let best=TORD.indexOf(tier(c));const see=x=>{const i=TORD.indexOf(tier(x));if(i>=0&&(best<0||i<best))best=i};Object.values(c.regions||{}).forEach(see);Object.values(c.cities||{}).forEach(see);const t=best<0?'':TORD[best];return(t==='want'||!t)&&hasPlan(cc)?'plan':t};
+const hasPlan=cc=>(S.plans||[]).some(p=>p.cc===cc);
 
 /* ---------- sheets (stacked full-screen panels, back button aware) ---------- */
 const stack=[];let backWaiters=[];
@@ -214,7 +215,7 @@ function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCl
 function counts(){let been=0,want=0,lived=0,terr=0,drive=0;for(const c of C){if(c.disp)continue;const s=cs(c.cc);if(s.been){c.core?been++:terr++}if(s.want&&!s.been&&!s.drive)want++;if(s.lived)lived++;if(s.drive&&(c.core||S.settings.countTerr))drive++}const t=countTotals();return{been:t.been,total:t.total,want,lived,drive,terr:S.settings.countTerr?0:terr}}
 function renderMapView(){
   paintMap();const n=counts();
-  $('#legend').innerHTML=`<span class="lg"><i class="dot been"></i>Been <b>${n.been}</b></span><span class="lg"><i class="dot want"></i>Want to go <b>${n.want}</b></span><span class="lg"><i class="dot lived"></i>Lived <b>${n.lived}</b></span>${n.drive?`<span class="lg"><i class="dot drive"></i>Drove through <b>${n.drive}</b></span>`:''}${Object.keys(S.airports||{}).length?`<span class="lg">${ic('plane','lgp')}Airports <b>${Object.keys(S.airports).length}</b></span>`:''}`;
+  $('#legend').innerHTML=`<span class="lg"><i class="dot been"></i>Been <b>${n.been}</b></span><span class="lg"><i class="dot want"></i>Want to go <b>${n.want}</b></span><span class="lg"><i class="dot lived"></i>Lived <b>${n.lived}</b></span>${n.drive?`<span class="lg"><i class="dot drive"></i>Drove through <b>${n.drive}</b></span>`:''}${(()=>{const k=new Set((S.plans||[]).map(p=>p.cc).filter(cc=>cc&&ctier(cc)==='plan')).size;return k?`<span class="lg"><i class="dot plan"></i>Planned <b>${k}</b></span>`:''})()}${Object.keys(S.airports||{}).length?`<span class="lg">${ic('plane','lgp')}Airports <b>${Object.keys(S.airports).length}</b></span>`:''}`;
   const has=Object.keys(S.countries).length||S.plans.length;
   const old=Date.now()-(S.settings.lastBackup||0)>14*864e5&&Date.now()-(S.settings.nag||0)>7*864e5;
   $('#nag').innerHTML=has&&old?`<div class="nag"><span>${S.settings.lastBackup?'It’s been 2+ weeks since your last backup.':'You haven’t saved a backup yet.'}</span><button class="btn sm" data-nag="save">Save backup</button><button class="btn sm ghost" data-nag="later">Later</button></div>`:'';
@@ -222,7 +223,7 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
-  blueridge:['Blue Ridge','Carolina blue, sky, navy and pine',{been:'#7bafd4',want:'#3d5f80',lived:'#d6e6f4',drive:'#8dba9f'},{been:'#4b9cd3',want:'#a6cbe8',lived:'#13294b',drive:'#6f9e85'}],
+  blueridge:['Blue Ridge','Navy Lived, Carolina blue Been, light blue Drove through, pale Want to go, grey for plans',{been:'#7bafd4',want:'#33404c',lived:'#e3eef8',drive:'#4f7698'},{been:'#4b9cd3',want:'#e3ecf3',lived:'#13294b',drive:'#a9cfec'}],
   atlas:['Atlas','Teal, ochre, Carolina blue for Lived, sage',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
   classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
   sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
@@ -642,7 +643,7 @@ async function makeSharePicture(kind){
   await loadGeo();try{await document.fonts.load('500 60px Newsreader')}catch(e){}
   const W=1080,H=kind==='story'?1920:1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
   const v=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  const col={bg:v('--bg'),card:v('--card'),ink:v('--ink'),muted:v('--muted'),land:v('--land'),sea:v('--sea'),line:v('--line'),been:v('--been'),want:v('--want'),lived:v('--lived'),drive:v('--drive'),home:S.settings.homeColor||HOMECOL[0]};
+  const col={bg:v('--bg'),card:v('--card'),ink:v('--ink'),muted:v('--muted'),land:v('--land'),sea:v('--sea'),line:v('--line'),been:v('--been'),want:v('--want'),lived:v('--lived'),drive:v('--drive'),plan:v('--plan'),home:S.settings.homeColor||HOMECOL[0]};
   const mix=(a,b,t)=>{const p=h=>{h=h.replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};try{const A=p(a),B=p(b);return'#'+A.map((x,i)=>Math.round(x*t+B[i]*(1-t)).toString(16).padStart(2,'0')).join('')}catch(e){return a}};
   const serif='Newsreader, Georgia, serif',sans='Archivo, "Helvetica Neue", Arial, sans-serif',emo='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
   ctx.fillStyle=col.bg;ctx.fillRect(0,0,W,H);
@@ -802,7 +803,7 @@ function renderPlans(){
   }
   $('#plist').innerHTML=html||'<p class="empty">No plans with this status.</p>';
 }
-function newPlan(cc,sec){const p={id:uid(),cc,sec:sec||'',title:'',start:'',end:'',status:'idea',notes:'',links:[],photos:[],todos:[],created:Date.now()};S.plans.push(p);save();return p}
+function newPlan(cc,sec){const p={id:uid(),cc,sec:sec||'',title:'',start:'',end:'',status:'idea',notes:'',links:[],photos:[],todos:[],created:Date.now()};S.plans.push(p);save();paintMap();return p}
 function newSection(cc){const name=(prompt('Section name (a city, a route, one trip…)')||'').trim();if(!name)return null;const s={id:uid(),cc,name};S.sections.push(s);save();return s}
 
 /* ---------- country sheet ---------- */
@@ -912,8 +913,8 @@ function openPlan(id,fresh){
       else if(a==='pack'){const have=new Set((p.todos||[]).map(x=>x.t.toLowerCase()));const add=packList().filter(x=>!have.has(x.toLowerCase()));(p.todos||(p.todos=[])).push(...add.map(t=>({t,done:false})));save();this.refresh();toast(add.length?`Added ${plural(add.length,'item')}`:'Already on the list')}
       else if(a==='savepack'){S.settings.packing=(p.todos||[]).map(x=>x.t);save();toast('Saved as your packing list')}
       else if(a==='deltodo'){p.todos.splice(+t.dataset.i,1);save();this.refresh()}
-      else if(a==='delplan'){if(confirm('Delete this plan? Its photos are deleted too.')){(p.photos||[]).forEach(id=>phDel(id).catch(()=>{}));S.plans=S.plans.filter(x=>x!==p);save();history.back()}}
-      else if(a==='movecc'){pickCountry('Move plan to…',cc=>{if(cc!==p.cc){p.cc=cc;p.sec='';save()}})}
+      else if(a==='delplan'){if(confirm('Delete this plan? Its photos are deleted too.')){(p.photos||[]).forEach(id=>phDel(id).catch(()=>{}));S.plans=S.plans.filter(x=>x!==p);save();paintMap();history.back()}}
+      else if(a==='movecc'){pickCountry('Move plan to…',cc=>{if(cc!==p.cc){p.cc=cc;p.sec='';save();paintMap()}})}
     },
     input(e){
       const p=S.plans.find(x=>x.id===id);if(!p)return;const d=e.target.dataset;

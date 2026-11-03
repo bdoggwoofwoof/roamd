@@ -335,7 +335,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 .rhead,.h3,.tt b,.rname,.tour-txt h3,.ptitle{font-family:var(--font-display);font-weight:500;letter-spacing:-.01em}
 .rhead{font-size:var(--t-lg);margin:var(--s5) 2px var(--s2)}
 .sub{font-size:var(--t-xs);font-weight:650;letter-spacing:.12em;color:var(--ink-2);margin:var(--s5) 2px var(--s2)}
-.sub small,.rhead small{font-family:var(--font-mono);font-weight:500;letter-spacing:0;color:var(--muted);text-transform:none;font-size:var(--t-sm)}
+.sub small,.rhead small{font-family:var(--font-sans);font-weight:500;letter-spacing:0;color:var(--muted);text-transform:none;font-size:var(--t-sm)}
 .tt b{font-size:var(--t-xl)}.tt small{font-size:var(--t-sm);color:var(--ink-2)}
 /* fewer boxes: cards are flat, rows carry the structure */
 .card{box-shadow:none;border:1px solid var(--line);border-radius:var(--r-lg)}
@@ -424,6 +424,55 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 .rlist summary{font-weight:600;font-size:var(--t-md)}
 .rlist .card{border-radius:var(--r-md)}
 .visit{border:1px solid var(--line);border-radius:var(--r-md);background:var(--card)}
+
+/* ---- page heads, Stats, Compare ---- */
+.pghead{margin:var(--s4) 2px var(--s2)}
+.h-pg{font-family:var(--font-display);font-weight:450;font-size:var(--t-2xl);line-height:1.08;letter-spacing:-.015em;margin:0}
+.pghead .meta{margin:6px 0 0;color:var(--ink-2);font-size:var(--t-md)}
+#statsBox section,#cmpBox section{margin-top:var(--s5)}
+#statsBox .sub,#cmpBox .sub{margin:0 2px var(--s3)}
+.headline{margin-top:var(--s4)!important}
+.headline .big{margin:0;font-family:var(--font-display);font-size:var(--t-3xl);font-weight:450;line-height:1;letter-spacing:-.02em}
+.headline .big .mono{font-family:var(--font-display);font-variant-numeric:lining-nums}
+.headline .big small{font-size:var(--t-lg);color:var(--ink-3);margin-left:6px;letter-spacing:0}
+.headline .meta{margin:var(--s2) 0 0;color:var(--ink-2);font-size:var(--t-md)}
+.track{height:6px;border-radius:3px;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden;margin:var(--s3) 0}
+.track i{display:block;height:100%;background:var(--been)}
+.figs{display:grid;grid-template-columns:1fr 1fr;margin:0;border-top:1px solid var(--line)}
+.figs div{display:flex;flex-direction:column-reverse;padding:10px 2px;border-bottom:1px solid var(--line)}
+.figs div:nth-child(odd){padding-right:var(--s3)}.figs div:nth-child(even){padding-left:var(--s3);border-left:1px solid var(--line)}
+.figs dt{font-size:var(--t-sm);color:var(--ink-2)}
+.figs dd{margin:0;font-size:var(--t-lg);font-weight:500}
+.figs dd small{font-size:var(--t-sm);color:var(--ink-3)}
+.farline{display:flex;flex-direction:column;gap:2px;padding:12px 2px;border-bottom:1px solid var(--line);text-align:left;width:100%}
+.farline b{font-family:var(--font-display);font-weight:500;font-size:var(--t-lg)}
+.bars{display:flex;flex-direction:column;gap:var(--s3)}
+.bars .bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;font-size:var(--t-md);align-items:center;height:auto;background:none;border-radius:0;overflow:visible}
+.bars .bar .nm2{min-width:0}
+.bars .bar .tr{grid-column:1/3;height:6px;border-radius:3px;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden;display:block}
+.bars .bar .tr i{display:block;height:100%;background:var(--been);border-radius:0}
+.bars .bar .v{font-size:var(--t-sm);color:var(--ink-2)}
+.ms{display:grid;grid-template-columns:32px 1fr auto;gap:0 var(--s3);align-items:center;min-height:56px;padding:6px 2px;border-bottom:1px solid var(--line)}
+.ms .ring{grid-column:1;grid-row:1/3;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--been) calc(var(--p)*1%),color-mix(in srgb,var(--ink) 10%,transparent) 0)}
+.ms .ring::after{content:"";grid-area:1/1;width:20px;height:20px;border-radius:50%;background:var(--bg)}
+.ms .ring.done{background:var(--been)}.ms .ring.done::after{display:none}
+.ms .ring .ic{grid-area:1/1;width:15px;height:15px;color:var(--been-ink);z-index:1;stroke-width:2.2}
+.ms b{grid-column:2;align-self:end;font-weight:600;font-size:var(--t-md)}
+.ms>span:not(.ring){grid-column:2;align-self:start;font-size:var(--t-sm);color:var(--ink-2)}
+.ms em{grid-column:3;grid-row:1/3;font-style:normal;font-size:var(--t-sm);color:var(--ink-2)}
+#statLists .card{border:0;border-top:1px solid var(--line);border-radius:0;background:none}
+#statLists .lrow{padding:12px 2px}
+.lrow .bar{height:6px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.fcard p{margin:6px 0}
+.rows{border-top:1px solid var(--line)}
+.rows .frow{padding:12px 2px}
+.cmpsec .fld{margin-top:0}
+.cmpsec .btns{margin:var(--s2) 0}
+.cmpleg{margin-top:var(--s3)}
+.small .c.s-both,.fsmap .c.s-both,.cdot.s-both{fill:var(--both)}
+.small .c.s-mine,.fsmap .c.s-mine{fill:url(#pMe)}.cdot.s-mine{fill:var(--ink-2)}
+.small .c.s-them,.fsmap .c.s-them{fill:url(#pThem)}.cdot.s-them{fill:var(--them)}
+.danger-zone{margin-top:var(--s6);padding-top:var(--s4);border-top:1px solid var(--line)}
 </style>
 </head>
 <body>

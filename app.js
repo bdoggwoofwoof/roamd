@@ -44,6 +44,7 @@ expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
 shrink:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
 star:'<path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
 clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',
 plane:'<path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/>',
 };
 const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
@@ -983,22 +984,16 @@ function parseCode(txt){
 }
 function addFriend(f){const ex=S.friends.find(x=>x.name.toLowerCase()===f.name.toLowerCase());if(ex&&confirm(`Replace your saved map from ${ex.name} with this newer one?`)){Object.assign(ex,f,{added:Date.now()});save();return ex}const n={id:uid(),...f,added:Date.now()};S.friends.push(n);save();return n}
 function renderCompare(){
-  const n=counts();
-  $('#cmpBox').innerHTML=`
-  <div class="card pad">
-    <h3 class="h3">Share your map</h3>
-    <p class="muted small">Send this link to a friend. When they open it in Roamd, they see how your maps compare. It’s a snapshot: send a new one after you update.</p>
-    <label class="fld"><span>Your name on the link</span><input id="meName" value="${esc(S.me)}" placeholder="e.g. Newt" maxlength="30"></label>
-    <p class="small">${n.been} countries been · ${n.want} want to go · ${n.lived} lived</p>
-    <div class="btnrow"><button class="btn" data-cmp="share">${ic('share')} Share my map</button><button class="btn ghost" data-cmp="copy">${ic('clip')} Copy link</button></div>
-  </div>
-  <div class="card pad">
-    <h3 class="h3">Add a friend’s map</h3>
-    <p class="muted small">Opening their link adds it here automatically. Or paste the link they sent you.</p>
-    <div class="addlink"><input id="frIn" placeholder="Paste their Roamd link" autocomplete="off"><button class="btn sm ghost" data-cmp="paste">${ic('clip')} Paste</button><button class="btn sm" data-cmp="add">Add</button></div>
-  </div>
-  <h3 class="rhead"><span>Friends’ maps</span></h3>
-  ${S.friends.length?`<div class="card">${S.friends.map(f=>{const r=cmpStats(f);return`<button class="frow" data-friend="${f.id}"><span class="av">${esc((f.name[0]||'?').toUpperCase())}</span><span class="ptxt"><span class="pt">${esc(f.name)}</span><span class="pm">${plural(f.been.length,'country')} · ${r.both.length} in common · ${r.them.length} you haven’t</span></span>${ic('chev','chev')}</button>`}).join('')}</div>`:'<p class="empty">No friends’ maps yet.</p>'}`;
+  const share=`<section class="cmpsec"><h2 class="sub">Share your map</h2>
+    <label class="fld"><span>Your name, as friends will see it</span><input id="meName" value="${esc(S.me)}" placeholder="e.g. Newt" maxlength="30"></label>
+    <div class="btns"><button class="btn" data-cmp="share">${ic('share')} Share my map</button><button class="btn ghost" data-cmp="copy">${ic('clip')} Copy link</button></div>
+    <p class="small muted">It’s a snapshot: send a new link after you update.</p></section>`;
+  const add=`<section class="cmpsec"><h2 class="sub">Add a friend’s map</h2>
+    <p class="small muted">Opening their link adds it here automatically. Or paste the link they sent you.</p>
+    <div class="addlink"><input id="frIn" placeholder="Paste their Roamd link" autocomplete="off" aria-label="Their Roamd link"><button class="btn sm ghost" data-cmp="paste">${ic('clip')} Paste</button><button class="btn sm" data-cmp="add">Add</button></div></section>`;
+  const list=S.friends.length?`<section class="cmpsec"><h2 class="sub">Friends’ maps <small>${S.friends.length}</small></h2><div class="rows">${S.friends.map(f=>{const r=cmpStats(f);return`<button class="frow" data-friend="${f.id}"><span class="av">${esc((f.name[0]||'?').toUpperCase())}</span><span class="ptxt"><span class="pt">${esc(f.name)}</span><span class="pm">${r.both.length} in common · ${r.them.length} you haven’t been to</span></span>${ic('chev','chev')}</button>`}).join('')}</div></section>`:'';
+  $('#cmpBox').innerHTML=`<header class="pghead"><h1 class="h-pg">Compare</h1><p class="meta">See where your map overlaps with a friend’s. You swap links, and nobody can change your map.</p></header>
+  ${list}${share}${add}`;
 }
 function cmpStats(f){const me=new Set(C.filter(c=>cs(c.cc).been).map(c=>c.cc)),th=new Set(f.been);const both=[...me].filter(x=>th.has(x)),mine=[...me].filter(x=>!th.has(x)),them=[...th].filter(x=>!me.has(x));const wantBoth=f.want.filter(cc=>cs(cc).want&&!cs(cc).been);return{both,mine,them,wantBoth,me}}
 const chipList=ccs=>ccs.length?`<div class="chips2">${ccs.map(cc=>BY[cc]).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name)).map(c=>`<button class="wchip" data-open-cc="${c.cc}">${flag(c.cc)} ${esc(c.name)}</button>`).join('')}</div>`:'<p class="muted small">None.</p>';
@@ -1007,16 +1002,17 @@ function openFriend(id){
     render(el){
       const f=S.friends.find(x=>x.id===id);if(!f){el.innerHTML=shead('Compare')+'<div class="sbody"><p class="muted">Removed.</p></div>';return}
       const r=cmpStats(f),coreN=a=>a.filter(cc=>BY[cc]?.core).length;
-      el.innerHTML=`${shead(`<span class="tt"><b>You &amp; ${esc(f.name)}</b><small>Their map from ${new Date(f.added).toLocaleDateString()}</small></span>`,`<button class="iconbtn" data-act="delfr" aria-label="Remove">${ic('trash')}</button>`)}
+      el.innerHTML=`${shead(`<span class="tt"><b>You &amp; ${esc(f.name)}</b><small>Their map from ${new Date(f.added).toLocaleDateString()}</small></span>`)}
       <div class="sbody">
         <div class="cminiwrap"><div class="cmpmap" id="cmpMap"><div class="loading">Loading map…</div></div><button class="iconbtn sm mfs" data-act="cfs" aria-label="Full screen map">${ic('expand')}</button></div>
-        <div class="legend"><span class="lg"><i class="dot both"></i>Both <b>${r.both.length}</b></span><span class="lg"><i class="dot mine"></i>Only you <b>${r.mine.length}</b></span><span class="lg"><i class="dot them"></i>Only ${esc(f.name)} <b>${r.them.length}</b></span></div>
-        <div class="vs"><div><b>${coreN([...r.me])}</b><span>You</span></div><div class="vsmid">countries</div><div><b>${coreN(f.been)}</b><span>${esc(f.name)}</span></div></div>
+        <div class="legend cmpleg"><span class="lg"><i class="dot both"></i>Both <b>${r.both.length}</b></span><span class="lg"><i class="dot mine"></i>Only you <b>${r.mine.length}</b></span><span class="lg"><i class="dot them"></i>Only ${esc(f.name)} <b>${r.them.length}</b></span></div>
+        <p class="small muted">You’ve been to <span class="mono">${coreN([...r.me])}</span> countries, ${esc(f.name)} to <span class="mono">${coreN(f.been)}</span>.</p>
         <h4 class="sub">${esc(f.name)} has been, you haven’t <small class="muted">trip ideas, ask them</small></h4>${chipList(r.them)}
         <h4 class="sub">You both want to go</h4>${chipList(r.wantBoth)}
         <h4 class="sub">Been to both</h4>${chipList(r.both)}
         <h4 class="sub">Only you</h4>${chipList(r.mine)}
         ${f.lived.length?`<h4 class="sub">${esc(f.name)} has lived in</h4>${chipList(f.lived)}`:''}
+        <div class="danger-zone"><button class="btn danger" data-act="delfr">${ic('trash')} Remove ${esc(f.name)}’s map</button></div>
       </div>`;
       drawCompare($('#cmpMap',el),r);
     },
@@ -1049,25 +1045,28 @@ async function renderStats(){
     Object.entries(S.countries).forEach(([cc,o])=>Object.entries(o.cities||{}).forEach(([nm,x])=>{if(x.been)cand.push([nm+', '+BY[cc].name,cc,[x.lat,x.lon]])}));
     cand.forEach(c=>{const d=hav(hl,ho,c[2][0],c[2][1]);if(!far||d>far.d)far={d,name:c[0],cc:c[1]}})}
   const B=badgeList(),earned=B.filter(b=>b[2]>=b[3]).length;
-  const tile=(v,l)=>`<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+  // Atlas layout: one headline figure, then only the figures the map key doesn't already show.
+  const fig=(v,l,mono=true)=>`<div><dt>${l}</dt><dd${mono?' class="mono"':''}>${v}</dd></div>`;
+  const bars=(rows)=>`<div class="bars">${rows.map(([nm,v,t,lbl])=>`<div class="bar"><span class="nm2">${nm}</span><span class="v mono">${lbl}</span><span class="tr"><i style="width:${t?Math.min(100,v/t*100):0}%"></i></span></div>`).join('')}</div>`;
+  const ring=(on,p)=>`<span class="ring${on?' done':''}" style="--p:${on?100:Math.round(p)}" aria-hidden="true">${on?ic('check'):''}</span>`;
+  const Bs=[...B].sort((x,y)=>(y[2]>=y[3])-(x[2]>=x[3])||(y[2]/y[3])-(x[2]/x[3]));
   $('#statsBox').innerHTML=`
-  <div class="hero"><div class="big">${n.been}<small>/${n.total}</small></div><div><b>countries</b><span>${pct}% of the world${n.terr?` · plus ${plural(n.terr,'territory')}`:''}${S.settings.ukSplit?' · UK nations counted separately':''}</span></div>
-  <div class="bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>
-  <div class="btnrow" id="stBtns" style="margin-top:10px"><button class="btn" data-st="share" style="flex:1">${ic('share')} Share picture</button><button class="btn ghost" data-st="timeline" style="flex:1">${ic('clock')} Timeline</button></div>
-  <div class="tiles">${tile(conts.size+'<small>/7</small>','continents')}${tile(n.lived,'lived in')}${tile(n.want,'want to go')}${n.drive?tile(n.drive,'drove through'):''}${tile(regs2,'states &amp; regions')}${tile(cities2,'cities')}${tile(aps,'airports')}${tile(fs.n,'flights')}${tile(fmtN(fs.km),'km flown')}${tile(away,'days away')}${tile(S.plans.length,'plans')}${tile(photos,'photos')}${tile(S.friends.length,'friends’ maps')}</div>
-  ${far?`<div class="card pad farcard"><span class="small muted">Farthest from home</span><b>${flag(far.cc)} ${esc(far.name)}</b><span class="small">${fmtN(far.d)} km · ${fmtN(far.d*0.621371)} mi from ${esc(BY[home].name)}</span></div>`:home?'':`<button class="card pad farcard" data-st="home"><span class="small muted">Farthest from home</span><b>Set your home country</b><span class="small muted">Also used for days away and the Expat badge</span></button>`}
-  <h3 class="rhead"><span>Badges</span><small>${earned} of ${B.length}</small></h3>
-  <div class="badges" id="statBadges">${B.map(([nm,d,v,goal])=>{const on=v>=goal;return`<div class="badge${on?' on':''}"><span class="bico">${ic('star')}</span><b>${nm}</b><span>${esc(d)}</span>${on?'':`<span class="bprog"><i style="width:${Math.min(100,v/goal*100)}%"></i></span><small>${fmtN(Math.min(v,goal))} / ${fmtN(goal)}</small>`}</div>`}).join('')}</div>
-  <h3 class="rhead"><span>Lists</span></h3><div id="statLists"><div class="loading" style="position:static;padding:20px">Loading lists…</div></div>
-  ${yrs.length?`<h3 class="rhead"><span>Countries by year</span></h3><div class="card pad">${yrs.map(y=>`<div class="rbar"><span class="rn">${y}</span><span class="rv">${byYear[y].size}</span><div class="bar"><i style="width:${byYear[y].size/ymax*100}%"></i></div></div>`).join('')}</div>`:''}
-  ${fs.n?`<h3 class="rhead"><span>Flights</span><small>${fs.n} · ${fmtN(fs.km)} km</small></h3><div class="card pad fcard">
-    ${fs.longest?`<p class="small"><b>Longest:</b> ${fs.longest.from} → ${fs.longest.to}, ${fmtN(flightKm(fs.longest))} km</p>`:''}
-    <p class="small"><b>Top airports:</b> ${fs.ap.map(([c,k])=>`${c} (${k})`).join(', ')}</p><p class="small"><b>Top routes:</b> ${fs.rt.map(([c,k])=>`${c} (${k})`).join(', ')}</p>
+  <header class="pghead"><h1 class="h-pg">Stats</h1><p class="meta">How your travels spread across the world, and what’s next.</p></header>
+  <section class="headline"><p class="big"><span class="mono">${n.been}</span><small class="mono">/ ${n.total}</small></p><p class="meta">countries you’ve been to · ${pct}% of the world${n.terr?` · plus ${plural(n.terr,'territory')}`:''}${S.settings.ukSplit?' · UK nations counted separately':''}</p>
+    <div class="track" aria-hidden="true"><i style="width:${Math.min(100,pct)}%"></i></div>
+    <div class="btns" id="stBtns"><button class="btn sm" data-st="share">${ic('share')} Share picture</button><button class="btn sm ghost" data-st="timeline">${ic('clock')} Timeline</button></div></section>
+  <section><h2 class="sub">At a glance</h2><dl class="figs">${fig(conts.size+' <small>of 7</small>','continents')}${fig(fmtN(regs2),'states and regions')}${fig(fmtN(cities2),'cities')}${fig(fmtN(away),'days away from home')}${fig(fmtN(aps),'airports')}${fig(fmtN(fs.n),'flights')}${fig(fmtN(fs.km),'km flown')}${fig(S.plans.length,'plans')}${fig(photos,'photos')}${fig(S.friends.length,'friends’ maps')}</dl>
+  ${far?`<div class="farline"><span class="small muted">Farthest from home</span><b>${flag(far.cc)} ${esc(far.name)}</b><span class="small mono">${fmtN(far.d)} km · ${fmtN(far.d*0.621371)} mi from ${esc(BY[home].name)}</span></div>`:home?'':`<button class="farline" data-st="home"><span class="small muted">Farthest from home</span><b>Set your home country</b><span class="small muted">Also used for days away and the Expat badge</span></button>`}</section>
+  <section><h2 class="sub">By region <small>countries been to</small></h2>${bars(regs.map(r=>[esc(r.rn),r.b,r.t,`${r.b} of ${r.t}`]))}</section>
+  ${yrs.length?`<section><h2 class="sub">Countries by year</h2>${bars(yrs.map(y=>[y,byYear[y].size,ymax,byYear[y].size]))}</section>`:''}
+  <section><h2 class="sub">Badges <small>${earned} of ${B.length}</small></h2><div id="statBadges">${Bs.map(([nm,d,v,goal])=>{const on=v>=goal;return`<div class="ms${on?' done':''}">${ring(on,v/goal*100)}<b>${nm}</b><span>${esc(d)}</span><em class="mono">${on?'':`${fmtN(Math.min(v,goal))} / ${fmtN(goal)}`}</em></div>`}).join('')}</div></section>
+  <section><h2 class="sub">Lists</h2><div id="statLists"><div class="loading" style="position:static;padding:20px">Loading lists…</div></div></section>
+  ${fs.n?`<section><h2 class="sub">Flights <small>${fs.n} · ${fmtN(fs.km)} km</small></h2><div class="fcard">
+    ${fs.longest?`<p class="small"><b>Longest:</b> <span class="mono">${fs.longest.from} → ${fs.longest.to}</span>, ${fmtN(flightKm(fs.longest))} km</p>`:''}
+    <p class="small"><b>Top airports:</b> <span class="mono">${fs.ap.map(([c,k])=>`${c} (${k})`).join(', ')}</span></p><p class="small"><b>Top routes:</b> <span class="mono">${fs.rt.map(([c,k])=>`${c} (${k})`).join(', ')}</span></p>
     ${fs.al.length?`<p class="small"><b>Airlines:</b> ${fs.al.map(([c,k])=>`${esc(c)} (${k})`).join(', ')}</p>`:''}
     <p class="small muted">${(fs.km/40075).toFixed(2)}× around the Earth · ${(fs.km/384400*100).toFixed(1)}% of the way to the Moon</p>
-    <button class="btn sm ghost" data-st="flights">All flights</button></div>`:`<div class="card pad"><p class="small">Log flights to see distance flown, top routes and airlines.</p><div class="btnrow"><button class="btn sm" data-st="flights">${ic('plane')} Add flights</button><button class="btn sm ghost" data-st="import">Import from Flighty or others</button></div></div>`}
-  <h3 class="rhead"><span>By region</span></h3>
-  <div class="card pad">${regs.map(r=>`<div class="rbar"><span class="rn">${r.rn}</span><span class="rv">${r.b}/${r.t}</span><div class="bar"><i style="width:${r.t?r.b/r.t*100:0}%"></i></div></div>`).join('')}</div>`;
+    <div class="btns"><button class="btn sm ghost" data-st="flights">All flights</button></div></div></section>`:`<section><h2 class="sub">Flights</h2><p class="small">Log flights to see distance flown, top routes and airlines.</p><div class="btns"><button class="btn sm" data-st="flights">${ic('plane')} Add flights</button><button class="btn sm ghost" data-st="import">Import from Flighty or others</button></div></section>`}`;
   const lc=$('#statLists');if(lc)lc.innerHTML=await listsCardHTML();
 }
 

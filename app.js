@@ -8,7 +8,9 @@ RAW.split(';').forEach(r=>{const[n,cc,name,reg,core]=r.split('|');const o={n,cc,
 C.sort((a,b)=>a.name.localeCompare(b.name));
 const CORE=C.filter(c=>c.core).length;
 const MAPNAME={"Kosovo":"XK","N. Cyprus":"CY","Somaliland":"SO"};
-const CDN={d3:'vendor/d3.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
+const CDN={d3:'vendor/d3.min.js',proj:'vendor/d3-geo-projection.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
+// The atlas uses the Winkel Tripel projection (National Geographic's world map since 1998).
+const atlasProj=()=>d3.geoWinkel3();
 const STATUS_L={idea:'Idea',booked:'Booked',done:'Done'};
 const KL={been:'Been',want:'Want to go',lived:'Lived',drive:'Drove through'};
 const QL={been:'Been',want:'Want',lived:'Lived',drive:'Drove'};
@@ -42,6 +44,7 @@ expand:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
 shrink:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
 star:'<path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
 clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',
 plane:'<path d="M12 3c.8 0 1.3.9 1.3 2v4.6l6.7 4v1.8l-6.7-2.2v3.9l2 1.5V20L12 19l-3.3 1v-1.4l2-1.5v-3.9L4 16.4v-1.8l6.7-4V5c0-1.1.5-2 1.3-2z"/>',
 };
 const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
@@ -49,7 +52,7 @@ const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">
 /* ---------- storage ---------- */
 const LS='roamed.v1';
 let S;
-const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'classic',palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
+const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'atlas',palV:2,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
 let dbp;
 function db(){return dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('roamed',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('photos',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
 async function idb(store,mode,fn){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(store,mode);let out;const r=fn(t.objectStore(store));if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
@@ -63,7 +66,8 @@ async function load(){
   try{const raw=localStorage.getItem(LS);if(raw)a=JSON.parse(raw)}catch(e){try{localStorage.setItem(LS+'.broken',localStorage.getItem(LS))}catch(_){}}
   try{b=await kvGet('state')}catch(e){}
   const best=[a,b].filter(x=>x&&x.v).sort((x,y)=>(y.saved||0)-(x.saved||0))[0];
-  S=Object.assign(blank(),best||{});S.settings=Object.assign(blank().settings,S.settings||{});
+  S=Object.assign(blank(),best||{});const hadV=best&&best.settings&&best.settings.palV;S.settings=Object.assign(blank().settings,S.settings||{});
+  if(best&&!hadV){if(!best.settings||!best.settings.palette||best.settings.palette==='classic')S.settings.palette='atlas';S.settings.palV=2}
 }
 let saveT;
 function save(){
@@ -109,15 +113,17 @@ let mapReady=false,mapSvg,mapG,mapPaths,mapDots,zoom,curK=1,FEATS=[],PATHD=[],DO
 // The big map spins east–west forever: sideways panning turns the projection (bigPath) instead of sliding it.
 // geoPath stays unrotated for everything else (small maps, bounds, photo lookups).
 let bigProj,bigPath,curRot=0,rotWant=0,rotRAF=0,EQ=1,mapOuter,wrapL,wrapR;
-const MW=1000,MH=520;
+const MW=1000,MH=616;
 function loadScript(src){return new Promise((res,rej)=>{if($(`script[src="${src}"]`))return res();const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.append(s)})}
 let geoP;
 function loadGeo(){return geoP||(geoP=(async()=>{
-  await loadScript(CDN.d3);await loadScript(CDN.topo);
+  await loadScript(CDN.d3);await loadScript(CDN.proj);await loadScript(CDN.topo);
   const topo=await (await fetch(CDN.map)).json();
   FEATS=topojson.feature(topo,topo.objects.countries).features;
-  const proj=d3.geoNaturalEarth1().fitExtent([[4,4],[MW-4,MH-4]],{type:'Sphere'});
-  geoPath=d3.geoPath(proj);bigProj=d3.geoNaturalEarth1().scale(proj.scale()).translate(proj.translate());bigPath=d3.geoPath(bigProj);EQ=proj.scale()*0.8707;
+  const proj=atlasProj().fitExtent([[4,4],[MW-4,MH-4]],{type:'Sphere'});
+  geoPath=d3.geoPath(proj);bigProj=atlasProj().scale(proj.scale()).translate(proj.translate());bigPath=d3.geoPath(bigProj);
+  // EQ: map units per radian of longitude along the equator (Winkel Tripel is linear there), so the side copies line up
+  EQ=(proj([90,0])[0]-proj([0,0])[0])/(Math.PI/2);
   // Split overseas parts that the map data glues onto the home country, so each fills only for itself.
   const SPLIT={FR:(x,y)=>x<-30?(y<8?'GF':y>15.5?'GP':'MQ'):x>40&&y<0?(x>50?'RE':'YT'):'',NL:x=>x<-30?'BQ':'',NO:(x,y)=>y>74||x<-5?'SJ':''};
   const parts=[];
@@ -146,9 +152,11 @@ async function initMap(){
   mapSvg=d3.select(box).append('svg').attr('viewBox',`0 0 ${MW} ${MH}`).attr('class','map').attr('role','img').attr('aria-label','World map');
   mapG=mapSvg.append('g');const outer=mapG;mapG=outer.append('g').attr('id','roamWorld');
   wrapL=outer.append('use').attr('href','#roamWorld').attr('class','wrapc').attr('x',-2*Math.PI*EQ);wrapR=outer.append('use').attr('href','#roamWorld').attr('class','wrapc').attr('x',2*Math.PI*EQ);mapOuter=outer;
+  mapSvg.append('defs').html(PATDEFS('b'));
   mapG.append('path').attr('class','sphere').attr('d',bigPath({type:'Sphere'}));
+  mapG.append('path').attr('class','grat').datum(d3.geoGraticule10()).attr('d',bigPath);
   mapPaths=mapG.selectAll('path.c').data(PATHD).join('path').attr('d',d=>bigPath(d.f)).attr('data-cc',d=>d.cc).attr('class','c');
-  gReg=mapG.append('g').attr('class','regs');gBord=mapG.append('g').attr('class','bords');gDisp=mapG.append('g').attr('class','disp');
+  gReg=mapG.append('g').attr('class','regs');gInner=mapG.append('g').attr('class','inners');gBord=mapG.append('g').attr('class','bords');gDisp=mapG.append('g').attr('class','disp');
   mapDots=mapG.selectAll('g.dotg').data(DOTS).join('g').attr('class','dotg').attr('transform',d=>{const q=bigProj(d.ll);return`translate(${q[0]},${q[1]})`});
   mapDots.append('circle').attr('class','hit');mapDots.append('circle').attr('class','dm');
   gFlight=mapG.append('g').attr('class','flights');gList=mapG.append('g').attr('class','lmks');gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
@@ -172,10 +180,10 @@ function applyT(t){curK=t.k;const cx=MW/2-t.k*MW/2;rotWant=(t.x-cx)/(t.k*EQ)*180
 function needRecentre(){if(!mapReady)return false;const t=d3.zoomTransform(mapSvg.node());const{vw}=viewDims(),vx=t.x-rad(curRot)*t.k*EQ,L=(MW/2-vw/2-vx)/t.k,Rr=(MW/2+vw/2-vx)/t.k,half=Math.PI*EQ;
   return Math.abs(rotWant-curRot)>.05&&(L<MW/2-half+4||Rr>MW/2+half-4)}
 function reproject(r0){if(!mapReady)return;curRot=r0==null?rotWant:r0;const r=((curRot+180)%360+360)%360-180;bigProj.rotate([r,0]);
-  mapPaths.attr('d',d=>bigPath(d.f));
+  mapPaths.attr('d',d=>bigPath(d.f));mapG.select('.grat').attr('d',bigPath);
   mapDots.attr('transform',d=>{const q=bigProj(d.ll);d.x=q[0];d.y=q[1];return`translate(${q[0]},${q[1]})`});
   gReg.selectAll('path').attr('d',d=>bigPath(d.f));gBord.selectAll('path').attr('d',d=>bigPath(d.f));gDisp.selectAll('path').attr('d',d=>bigPath(d));
-  paintPoints();paintFlights();paintLists();applyT(d3.zoomTransform(mapSvg.node()))}
+  paintInner();paintPoints();paintFlights();paintLists();applyT(d3.zoomTransform(mapSvg.node()))}
 function zoomRegion(rc){
   if(!mapReady)return;if(!rc){fitStart();return}
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -185,7 +193,7 @@ function zoomRegion(rc){
   mapSvg.transition().duration(600).call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(x0+x1)/2+rad(curRot)*k*EQ,MH/2-k*(y0+y1)/2).scale(k));
 }
 function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.min(r.width/MW,r.height/MH)||.4)*curK}
-function sizeDots(){if(!mapDots)return;const u=pxPerUnit();
+function sizeDots(){if(!mapDots)return;const u=pxPerUnit();sizePatterns(u);
   // dots shrink away once you've zoomed in far enough to see the real shape
   mapDots.style('display',u>14?'none':null);
   mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}
@@ -197,7 +205,7 @@ const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc)
 function syncStBtn(){const b=$('#zstate');if(!b)return;const any=stCfg().stOn;b.hidden=!any;b.classList.toggle('on',stView());b.setAttribute('aria-pressed',stView());b.setAttribute('aria-label',stView()?'Hide states on the map':'Show states on the map')}
 function toggleStView(){S.settings.stView=!stView();save();syncStBtn();paintMap();toast(stView()?'States shown on the map':'States hidden on the map (your marks are kept)')}
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
-  mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
+  mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintInner();paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
 function counts(){let been=0,want=0,lived=0,terr=0,drive=0;for(const c of C){if(c.disp)continue;const s=cs(c.cc);if(s.been){c.core?been++:terr++}if(s.want&&!s.been&&!s.drive)want++;if(s.lived)lived++;if(s.drive&&(c.core||S.settings.countTerr))drive++}const t=countTotals();return{been:t.been,total:t.total,want,lived,drive,terr:S.settings.countTerr?0:terr}}
 function renderMapView(){
   paintMap();const n=counts();
@@ -209,6 +217,7 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
+  atlas:['Atlas','Teal, ochre stripes, Carolina blue for Lived, sage dots',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
   classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
   sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
   ocean:['Ocean','',{been:'#2ec4d6',want:'#9be564',lived:'#6f8cff',drive:'#ffb86b'},{been:'#00838f',want:'#4f9d2a',lived:'#3352d6',drive:'#d9822b'}],
@@ -228,18 +237,18 @@ function customPal(c){
   return['Custom','Your three colors',mk(dark),mk(light)];
 }
 function customFrom(k){const P=PALETTES[k]||PALETTES.classic;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
-const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.classic;
+const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.atlas;
 function palVars(c){return KEYS.map(k=>`--${k}:${c[k]};--${k}-ink:${inkFor(c[k])};`).join('')}
-function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#c4532d')}
+function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#2f5f8a')}
 function applyPalette(){applyHomeColor();
-  let el=$('#palette');const k=S.settings.palette||'classic';
-  if(k==='classic'){if(el)el.remove();return}
+  let el=$('#palette');const k=S.settings.palette||'atlas';
+  if(k==='atlas'){if(el)el.remove();return}
   if(!el){el=document.createElement('style');el.id='palette';document.head.appendChild(el)}
   const P=palFor(k),d=P[2],l=P[3];
-  el.textContent=`html:root{${palVars(l)}}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}}}html:root[data-theme="dark"]{${palVars(d)}}`;
+  el.textContent=`html:root{${palVars(l)}--want-ink:#1f2a33;}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}}}html:root[data-theme="dark"]{${palVars(d)}}`;
 }
 function paletteHTML(){
-  const cur=S.settings.palette||'classic',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
+  const cur=S.settings.palette||'atlas',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
   const sw=P=>{const c=P[dark?2:3];return`<span class="sw">${KEYS.map(k=>`<i style="background:${c[k]}"></i>`).join('')}</span>`};
   return`<div class="pal-grid">${Object.entries(PALETTES).map(([k,P])=>`<button class="pal${cur===k?' on':''}" data-act="pal" data-v="${k}" aria-pressed="${cur===k}">${sw(P)}<span class="pn">${P[0]}</span>${P[1]?`<span class="pd">${P[1]}</span>`:''}</button>`).join('')}
   <button class="pal${cur==='custom'?' on':''}" data-act="palcustom" aria-pressed="${cur==='custom'}">${sw(customPal())}<span class="pn">Custom</span><span class="pd">${S.settings.palCustom?'Tap to edit':'Pick your own three'}</span></button></div>`;
@@ -340,7 +349,7 @@ function regionsBlockHTML(cc,sel){
     h+=`<div class="subrow"><h4 class="sub">${rword(cc)} <small>${nb} of ${n} been</small></h4></div>
     <div class="cminiwrap"><div class="cmini" id="cmini"><div class="loading">Loading map…</div></div><button class="iconbtn sm mfs" data-act="regfs" aria-label="Full screen map">${ic('expand')}</button></div>
     <div class="rsel">${sr?`<b>${esc(sr[1])}</b><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${rs(cc,sr[0])[k]?' on':''}" data-rq="${sr[0]}" data-k="${k}">${QL[k]}</button>`).join('')}</span>`:`<span class="muted small">Tap a ${rword(cc).split(' ')[0].toLowerCase().replace(/s$/,'').replace(/ie$/,'y')} on the map to mark it, or use the list.</span>`}</div>
-    <details class="rlist"><summary>All ${n} ${rword(cc).toLowerCase()}</summary><div class="card">${idx.map(([id,name])=>{const x=rs(cc,id);return`<div class="crow"><span class="cmain"><span class="cname">${esc(name)}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-rq="${id}" data-k="${k}">${QL[k]}</button>`).join('')}</span></div>`}).join('')}</div></details>`}
+    <details class="rlist" open><summary>All ${n} ${rword(cc).toLowerCase()}</summary><div class="card">${idx.map(([id,name])=>{const x=rs(cc,id);return`<div class="crow"><span class="cmain"><span class="cname">${esc(name)}</span></span><span class="qb">${KEYS.map(k=>`<button class="q q-${k}${x[k]?' on':''}" data-rq="${id}" data-k="${k}">${QL[k]}</button>`).join('')}</span></div>`}).join('')}</div></details>`}
   const mine=Object.entries(cs(cc).cities||{});
   h+=`<h4 class="sub">Cities</h4>${mine.length?`<div class="card">${mine.map(([n,x])=>cityRow(cc,[n,x.lat,x.lon,x.adm])).join('')}</div>`:''}
   <div class="pickq0"><input id="cityQ" placeholder="Find a city in ${esc(BY[cc].name)}" autocomplete="off"></div><div id="cres"></div>`;
@@ -365,7 +374,20 @@ async function drawMini(box,cc,sel){
 }
 
 /* main map overlays */
-let gReg,gBord,gCity,gPlane,regBusy=0;
+let gReg,gBord,gCity,gPlane,gInner,regBusy=0;
+/* Status patterns: Want to go is striped, Drove through is dotted, so statuses differ without color.
+   p = id prefix ('b' for the big map, sized to the screen; 'p' for the small maps, sized in map units). */
+const PATDEFS=(p,u=5)=>`<pattern id="${p}Want" patternUnits="userSpaceOnUse" width="${u}" height="${u}" patternTransform="rotate(45)"><rect class="pw-bg" width="${u}" height="${u}"/><line class="pw-ln" x1="0" y1="0" x2="0" y2="${u}" style="stroke-width:${u*.3}"/></pattern><pattern id="${p}Drive" patternUnits="userSpaceOnUse" width="${u*.9}" height="${u*.9}"><rect class="pd-bg" width="${u*.9}" height="${u*.9}"/><circle class="pd-dot" cx="${u*.45}" cy="${u*.45}" r="${u*.16}"/></pattern><pattern id="${p}Me" patternUnits="userSpaceOnUse" width="${u*.8}" height="${u*.8}"><rect class="pm-bg" width="${u*.8}" height="${u*.8}"/><line class="pm-ln" x1="0" y1="0" x2="${u*.8}" y2="0" style="stroke-width:${u*.28}"/></pattern><pattern id="${p}Them" patternUnits="userSpaceOnUse" width="${u*.8}" height="${u*.8}" patternTransform="rotate(45)"><rect class="pt-bg" width="${u*.8}" height="${u*.8}"/><line class="pt-ln" x1="0" y1="0" x2="0" y2="${u*.8}" style="stroke-width:${u*.26}"/></pattern>`;
+// keep the big map's stripes and dots the same size on screen at any zoom
+function sizePatterns(u){if(!mapSvg)return;const s=1/u;mapSvg.select('#bWant').attr('patternTransform',`rotate(45) scale(${s})`);mapSvg.select('#bDrive').attr('patternTransform',`scale(${s})`)}
+/* Lived places get a fine inner outline as well as Carolina blue, so Lived and Been differ without color (countries and states). */
+function paintInner(){
+  if(!gInner)return;gInner.selectAll('*').remove();let i=0;
+  const add=(d,cls)=>{const id='lv'+(i++);gInner.append('clipPath').attr('id',id).append('path').attr('d',d);gInner.append('path').attr('class','inner'+(cls||'')).attr('d',d).attr('clip-path',`url(#${id})`)};
+  const partialOn=cc=>stView()&&partial(cc);
+  for(const p of PATHD){if(!p.cc||!cs(p.cc).lived||partialOn(p.cc)||p.cc===S.settings.home)continue;add(bigPath(p.f))}
+  gReg&&gReg.selectAll('path').each(function(d){if(d&&rs(d.cc,d.id).lived)add(this.getAttribute('d'),' r')});
+}
 function planeMode(){const m=S.settings.planeMode;return m||(S.settings.planes===false?'off':'all')}
 function planeShown(x){const m=planeMode();if(m==='off')return false;if(m==='notbeen'&&x.cc){const s=cs(x.cc);if(s.been||s.lived)return false}return true}
 function planeSegHTML(){return`<div class="seg" role="group" aria-label="Airplanes on the map">${[['all','All airports'],['notbeen','Hide where I’ve been'],['off','Off']].map(([v,l])=>`<button data-act="planes" data-v="${v}" class="${planeMode()===v?'on':''}">${l}</button>`).join('')}</div>`}
@@ -379,6 +401,7 @@ async function paintRegions(){
   gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>bigPath(d.f)).attr('class','cb');sizeBorders();
   mapSvg.classed('stmode',ccs.size>0);
   gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').on('click',(e,d)=>openCountry(d.cc,d.id))).attr('d',d=>bigPath(d.f)).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
+  paintInner();
 }
 function paintPoints(){
   if(!mapReady)return;const P=bigProj;
@@ -600,7 +623,7 @@ function badgeList(){const n=countTotals(),b=beenCCs(),conts=new Set(b.map(conti
     ['Time traveler','Dated visits in 5 different years',yrs,5],['Planner','Make 5 plans',S.plans.length,5]]}
 
 /* ---- home country ---- */
-const HOMECOL=['#c4532d','#0f766e','#7c3aed','#be185d','#1d4ed8','#4b5563'];
+const HOMECOL=['#2f5f8a','#9e4f30','#0f766e','#7c3aed','#be185d','#4b5563'];
 function homeHTML(){const h=S.settings.home;return`<div class="strow top"><span class="stname"><b>Home country</b><small>${h?flag(h)+' '+esc(BY[h].name)+' · shown in its own color':'Not set. Used for “farthest from home”, days away and the Expat badge.'}</small></span><button class="btn sm ghost" data-act="sethome">${h?'Change':'Set'}</button></div>
   ${h?`<div class="homecols">${HOMECOL.map(c=>`<button class="hc${(S.settings.homeColor||HOMECOL[0])===c?' on':''}" data-hc="${c}" style="background:${c}" aria-label="Home color"></button>`).join('')}<button class="btn sm ghost" data-act="clearhome">Clear</button></div>`:''}`}
 
@@ -610,18 +633,18 @@ const packList=()=>S.settings.packing&&S.settings.packing.length?S.settings.pack
 
 /* ---- share picture ---- */
 async function makeSharePicture(kind){
-  await loadGeo();try{await document.fonts.load('700 60px Fraunces')}catch(e){}
+  await loadGeo();try{await document.fonts.load('500 60px Newsreader')}catch(e){}
   const W=1080,H=kind==='story'?1920:1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
   const v=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const col={bg:v('--bg'),card:v('--card'),ink:v('--ink'),muted:v('--muted'),land:v('--land'),sea:v('--sea'),line:v('--line'),been:v('--been'),want:v('--want'),lived:v('--lived'),drive:v('--drive'),home:S.settings.homeColor||HOMECOL[0]};
   const mix=(a,b,t)=>{const p=h=>{h=h.replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};try{const A=p(a),B=p(b);return'#'+A.map((x,i)=>Math.round(x*t+B[i]*(1-t)).toString(16).padStart(2,'0')).join('')}catch(e){return a}};
-  const serif='Fraunces, Georgia, serif',sans='-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',emo='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  const serif='Newsreader, Georgia, serif',sans='Archivo, "Helvetica Neue", Arial, sans-serif',emo='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
   ctx.fillStyle=col.bg;ctx.fillRect(0,0,W,H);
   const story=kind==='story',ty0=story?230:120;
   ctx.fillStyle=col.ink;ctx.font=`700 ${story?76:64}px ${serif}`;ctx.textBaseline='alphabetic';ctx.fillText(S.me?`${S.me}’s travel map`:'My travel map',60,ty0);
   ctx.fillStyle=col.muted;ctx.font=`500 30px ${sans}`;ctx.fillText(new Date().toLocaleDateString(undefined,{month:'long',year:'numeric'}),60,ty0+48);
   const top=story?ty0+110:210,mh=540;
-  const proj=d3.geoNaturalEarth1().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
+  const proj=atlasProj().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
   ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=col.sea;ctx.fill();
   const fillOf=cc=>{if(!cc)return col.land;if(cc===S.settings.home)return col.home;const t=tier(cs(cc));if(!t)return col.land;return partial(cc)?mix(col[t],col.land,.38):col[t]};
   for(const p of PATHD){ctx.beginPath();path(p.f);ctx.fillStyle=fillOf(p.cc);ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=.6;ctx.stroke()}
@@ -779,18 +802,21 @@ function newSection(cc){const name=(prompt('Section name (a city, a route, one t
 /* ---------- country sheet ---------- */
 async function openCountry(cc,selR){
   const c=BY[cc];if(!c)return;
-  await regIndex();let sel=selR||'',cq='';
+  await regIndex();let sel=selR||'',cq='',livedEdit=false;
   sheet({
     render(el){
       const s=cs(cc),secs=S.sections.filter(x=>x.cc===cc),plans=S.plans.filter(p=>p.cc===cc);
       const loose=plans.filter(p=>!secs.some(x=>x.id===p.sec));
-      el.innerHTML=`${shead(`<span class="flag big">${flag(cc)}</span><span class="tt"><b>${esc(c.name)}</b><small>${RNAME[c.reg]}${c.core?'':' · territory'}</small></span>`)}
+      // Order follows the atlas pilot: status first, then where you lived, then states and cities, then the record of visits.
+      const editing=s.lived&&(livedEdit||!s.livedNote);
+      el.innerHTML=`${shead(`<span class="flag big">${flag(cc)}</span><span class="tt"><b>${esc(c.name)}</b><small>${RNAME[c.reg]}${c.core?'':' · territory'}${cc===S.settings.home?' · home country':''}</small></span>`)}
       <div class="sbody">
-        <div class="stoggles">${KEYS.map(k=>`<button class="st st-${k}${s[k]?' on':''}" data-act="tog" data-k="${k}"><i class="dot ${k}"></i>${KL[k]}</button>`).join('')}</div>
-        ${c.disp?'':`<div class="visitsbox">${visitsHTML(cc)}</div>`}
-        ${s.lived?`<label class="fld"><span>Where and when did you live there?</span><input data-f="livedNote" value="${esc(s.livedNote||'')}" placeholder="e.g. Amman, 2021–2022"></label>`:''}
-        <label class="fld"><span>Notes</span><textarea data-f="notes" rows="3" placeholder="Memories, people, places, food…">${esc(s.notes||'')}</textarea></label>
+        <div class="stoggles" role="group" aria-label="Status">${KEYS.map(k=>`<button class="st st-${k}${s[k]?' on':''}" data-act="tog" data-k="${k}" aria-pressed="${!!s[k]}"><i class="dot ${k}"></i>${KL[k]}</button>`).join('')}</div>
+        ${s.lived?(editing?`<div class="livedform"><label class="fld"><span>Where and when did you live there?</span><input data-f="livedNote" value="${esc(s.livedNote||'')}" placeholder="e.g. Amman, 2021–2022"></label>${s.livedNote?'<button class="btn sm ghost" data-act="liveddone">Done</button>':''}</div>`
+          :`<div class="livedline"><i class="dot lived" aria-hidden="true"></i><span class="lv"><b>${esc(s.livedNote)}</b><small>Where you lived</small></span><button class="btn sm ghost" data-act="livededit" aria-label="Edit where you lived">Edit</button></div>`):''}
         ${regionsBlockHTML(cc,sel)}
+        ${c.disp?'':`<div class="visitsbox">${visitsHTML(cc)}</div>`}
+        <label class="fld"><span>Notes</span><textarea data-f="notes" rows="3" placeholder="Memories, people, places, food…">${esc(s.notes||'')}</textarea></label>
         <h4 class="sub">Photos</h4>${gridHTML(s.photos||[])}
         <div class="subrow"><h4 class="sub">Plans</h4><span class="btns"><button class="btn sm ghost" data-act="newsec">${ic('folder')} Section</button><button class="btn sm" data-act="newplan">${ic('plus')} Plan</button></span></div>
         ${secs.map(x=>`<div class="secbox"><div class="sech">${ic('folder')}<b>${esc(x.name)}</b><button class="iconbtn sm" data-act="rensec" data-id="${x.id}" aria-label="Rename">${ic('pencil')}</button><button class="iconbtn sm" data-act="delsec" data-id="${x.id}" aria-label="Delete section">${ic('trash')}</button></div>${plans.filter(p=>p.sec===x.id).map(planRow).join('')}<button class="addline" data-act="newplan" data-sec="${x.id}">${ic('plus')} Plan in ${esc(x.name)}</button></div>`).join('')}
@@ -809,7 +835,9 @@ async function openCountry(cc,selR){
       const cqb=e.target.closest('[data-cq]');if(cqb){const n=cqb.dataset.cq,k=cqb.dataset.k,m=(cs(cc).cities||{})[n];const row=m?[n,m.lat,m.lon,m.adm]:((CITIES||{})[cc]||[]).find(r=>r[0]===n);if(row){setCity(cc,row,k,!ct(cc,n)[k]);this.refresh()}return}
       if(photoClick(e,()=>co(cc).photos||(co(cc).photos=[]),this))return;
       if(!t)return;const a=t.dataset.act;
-      if(a==='tog'){const k=t.dataset.k;setK(cc,k,!cs(cc)[k]);this.refresh()}
+      if(a==='tog'){const k=t.dataset.k;setK(cc,k,!cs(cc)[k]);this.refresh();const nb=this.el.querySelector(`.st[data-k="${k}"]`);nb&&nb.focus({preventScroll:true})}
+      else if(a==='livededit'){livedEdit=true;this.refresh();const i=this.el.querySelector('[data-f="livedNote"]');i&&i.focus()}
+      else if(a==='liveddone'){livedEdit=false;this.refresh()}
       else if(a==='addvisit'){const o=co(cc);(o.visits||(o.visits=[])).push({id:uid(),start:today(),end:today(),note:''});if(!o.been)setK(cc,'been',true);else save();this.refresh()}
       else if(a==='delvisit'){if(confirm('Remove this visit?')){const o=co(cc);o.visits=(o.visits||[]).filter(v=>v.id!==t.dataset.id);save();this.refresh()}}
       else if(a==='regfs'){openRegionMapFS(cc)}
@@ -956,22 +984,16 @@ function parseCode(txt){
 }
 function addFriend(f){const ex=S.friends.find(x=>x.name.toLowerCase()===f.name.toLowerCase());if(ex&&confirm(`Replace your saved map from ${ex.name} with this newer one?`)){Object.assign(ex,f,{added:Date.now()});save();return ex}const n={id:uid(),...f,added:Date.now()};S.friends.push(n);save();return n}
 function renderCompare(){
-  const n=counts();
-  $('#cmpBox').innerHTML=`
-  <div class="card pad">
-    <h3 class="h3">Share your map</h3>
-    <p class="muted small">Send this link to a friend. When they open it in Roamd, they see how your maps compare. It’s a snapshot: send a new one after you update.</p>
-    <label class="fld"><span>Your name on the link</span><input id="meName" value="${esc(S.me)}" placeholder="e.g. Newt" maxlength="30"></label>
-    <p class="small">${n.been} countries been · ${n.want} want to go · ${n.lived} lived</p>
-    <div class="btnrow"><button class="btn" data-cmp="share">${ic('share')} Share my map</button><button class="btn ghost" data-cmp="copy">${ic('clip')} Copy link</button></div>
-  </div>
-  <div class="card pad">
-    <h3 class="h3">Add a friend’s map</h3>
-    <p class="muted small">Opening their link adds it here automatically. Or paste the link they sent you.</p>
-    <div class="addlink"><input id="frIn" placeholder="Paste their Roamd link" autocomplete="off"><button class="btn sm ghost" data-cmp="paste">${ic('clip')} Paste</button><button class="btn sm" data-cmp="add">Add</button></div>
-  </div>
-  <h3 class="rhead"><span>Friends’ maps</span></h3>
-  ${S.friends.length?`<div class="card">${S.friends.map(f=>{const r=cmpStats(f);return`<button class="frow" data-friend="${f.id}"><span class="av">${esc((f.name[0]||'?').toUpperCase())}</span><span class="ptxt"><span class="pt">${esc(f.name)}</span><span class="pm">${plural(f.been.length,'country')} · ${r.both.length} in common · ${r.them.length} you haven’t</span></span>${ic('chev','chev')}</button>`}).join('')}</div>`:'<p class="empty">No friends’ maps yet.</p>'}`;
+  const share=`<section class="cmpsec"><h2 class="sub">Share your map</h2>
+    <label class="fld"><span>Your name, as friends will see it</span><input id="meName" value="${esc(S.me)}" placeholder="e.g. Newt" maxlength="30"></label>
+    <div class="btns"><button class="btn" data-cmp="share">${ic('share')} Share my map</button><button class="btn ghost" data-cmp="copy">${ic('clip')} Copy link</button></div>
+    <p class="small muted">It’s a snapshot: send a new link after you update.</p></section>`;
+  const add=`<section class="cmpsec"><h2 class="sub">Add a friend’s map</h2>
+    <p class="small muted">Opening their link adds it here automatically. Or paste the link they sent you.</p>
+    <div class="addlink"><input id="frIn" placeholder="Paste their Roamd link" autocomplete="off" aria-label="Their Roamd link"><button class="btn sm ghost" data-cmp="paste">${ic('clip')} Paste</button><button class="btn sm" data-cmp="add">Add</button></div></section>`;
+  const list=S.friends.length?`<section class="cmpsec"><h2 class="sub">Friends’ maps <small>${S.friends.length}</small></h2><div class="rows">${S.friends.map(f=>{const r=cmpStats(f);return`<button class="frow" data-friend="${f.id}"><span class="av">${esc((f.name[0]||'?').toUpperCase())}</span><span class="ptxt"><span class="pt">${esc(f.name)}</span><span class="pm">${r.both.length} in common · ${r.them.length} you haven’t been to</span></span>${ic('chev','chev')}</button>`}).join('')}</div></section>`:'';
+  $('#cmpBox').innerHTML=`<header class="pghead"><h1 class="h-pg">Compare</h1><p class="meta">See where your map overlaps with a friend’s. You swap links, and nobody can change your map.</p></header>
+  ${list}${share}${add}`;
 }
 function cmpStats(f){const me=new Set(C.filter(c=>cs(c.cc).been).map(c=>c.cc)),th=new Set(f.been);const both=[...me].filter(x=>th.has(x)),mine=[...me].filter(x=>!th.has(x)),them=[...th].filter(x=>!me.has(x));const wantBoth=f.want.filter(cc=>cs(cc).want&&!cs(cc).been);return{both,mine,them,wantBoth,me}}
 const chipList=ccs=>ccs.length?`<div class="chips2">${ccs.map(cc=>BY[cc]).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name)).map(c=>`<button class="wchip" data-open-cc="${c.cc}">${flag(c.cc)} ${esc(c.name)}</button>`).join('')}</div>`:'<p class="muted small">None.</p>';
@@ -980,16 +1002,17 @@ function openFriend(id){
     render(el){
       const f=S.friends.find(x=>x.id===id);if(!f){el.innerHTML=shead('Compare')+'<div class="sbody"><p class="muted">Removed.</p></div>';return}
       const r=cmpStats(f),coreN=a=>a.filter(cc=>BY[cc]?.core).length;
-      el.innerHTML=`${shead(`<span class="tt"><b>You &amp; ${esc(f.name)}</b><small>Their map from ${new Date(f.added).toLocaleDateString()}</small></span>`,`<button class="iconbtn" data-act="delfr" aria-label="Remove">${ic('trash')}</button>`)}
+      el.innerHTML=`${shead(`<span class="tt"><b>You &amp; ${esc(f.name)}</b><small>Their map from ${new Date(f.added).toLocaleDateString()}</small></span>`)}
       <div class="sbody">
         <div class="cminiwrap"><div class="cmpmap" id="cmpMap"><div class="loading">Loading map…</div></div><button class="iconbtn sm mfs" data-act="cfs" aria-label="Full screen map">${ic('expand')}</button></div>
-        <div class="legend"><span class="lg"><i class="dot both"></i>Both <b>${r.both.length}</b></span><span class="lg"><i class="dot mine"></i>Only you <b>${r.mine.length}</b></span><span class="lg"><i class="dot them"></i>Only ${esc(f.name)} <b>${r.them.length}</b></span></div>
-        <div class="vs"><div><b>${coreN([...r.me])}</b><span>You</span></div><div class="vsmid">countries</div><div><b>${coreN(f.been)}</b><span>${esc(f.name)}</span></div></div>
+        <div class="legend cmpleg"><span class="lg"><i class="dot both"></i>Both <b>${r.both.length}</b></span><span class="lg"><i class="dot mine"></i>Only you <b>${r.mine.length}</b></span><span class="lg"><i class="dot them"></i>Only ${esc(f.name)} <b>${r.them.length}</b></span></div>
+        <p class="small muted">You’ve been to <span class="mono">${coreN([...r.me])}</span> countries, ${esc(f.name)} to <span class="mono">${coreN(f.been)}</span>.</p>
         <h4 class="sub">${esc(f.name)} has been, you haven’t <small class="muted">trip ideas, ask them</small></h4>${chipList(r.them)}
         <h4 class="sub">You both want to go</h4>${chipList(r.wantBoth)}
         <h4 class="sub">Been to both</h4>${chipList(r.both)}
         <h4 class="sub">Only you</h4>${chipList(r.mine)}
         ${f.lived.length?`<h4 class="sub">${esc(f.name)} has lived in</h4>${chipList(f.lived)}`:''}
+        <div class="danger-zone"><button class="btn danger" data-act="delfr">${ic('trash')} Remove ${esc(f.name)}’s map</button></div>
       </div>`;
       drawCompare($('#cmpMap',el),r);
     },
@@ -1022,25 +1045,28 @@ async function renderStats(){
     Object.entries(S.countries).forEach(([cc,o])=>Object.entries(o.cities||{}).forEach(([nm,x])=>{if(x.been)cand.push([nm+', '+BY[cc].name,cc,[x.lat,x.lon]])}));
     cand.forEach(c=>{const d=hav(hl,ho,c[2][0],c[2][1]);if(!far||d>far.d)far={d,name:c[0],cc:c[1]}})}
   const B=badgeList(),earned=B.filter(b=>b[2]>=b[3]).length;
-  const tile=(v,l)=>`<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+  // Atlas layout: one headline figure, then only the figures the map key doesn't already show.
+  const fig=(v,l,mono=true)=>`<div><dt>${l}</dt><dd${mono?' class="mono"':''}>${v}</dd></div>`;
+  const bars=(rows)=>`<div class="bars">${rows.map(([nm,v,t,lbl])=>`<div class="bar"><span class="nm2">${nm}</span><span class="v mono">${lbl}</span><span class="tr"><i style="width:${t?Math.min(100,v/t*100):0}%"></i></span></div>`).join('')}</div>`;
+  const ring=(on,p)=>`<span class="ring${on?' done':''}" style="--p:${on?100:Math.round(p)}" aria-hidden="true">${on?ic('check'):''}</span>`;
+  const Bs=[...B].sort((x,y)=>(y[2]>=y[3])-(x[2]>=x[3])||(y[2]/y[3])-(x[2]/x[3]));
   $('#statsBox').innerHTML=`
-  <div class="hero"><div class="big">${n.been}<small>/${n.total}</small></div><div><b>countries</b><span>${pct}% of the world${n.terr?` · plus ${plural(n.terr,'territory')}`:''}${S.settings.ukSplit?' · UK nations counted separately':''}</span></div>
-  <div class="bar"><i style="width:${Math.min(100,pct)}%"></i></div></div>
-  <div class="btnrow" id="stBtns" style="margin-top:10px"><button class="btn" data-st="share" style="flex:1">${ic('share')} Share picture</button><button class="btn ghost" data-st="timeline" style="flex:1">${ic('clock')} Timeline</button></div>
-  <div class="tiles">${tile(conts.size+'<small>/7</small>','continents')}${tile(n.lived,'lived in')}${tile(n.want,'want to go')}${n.drive?tile(n.drive,'drove through'):''}${tile(regs2,'states &amp; regions')}${tile(cities2,'cities')}${tile(aps,'airports')}${tile(fs.n,'flights')}${tile(fmtN(fs.km),'km flown')}${tile(away,'days away')}${tile(S.plans.length,'plans')}${tile(photos,'photos')}${tile(S.friends.length,'friends’ maps')}</div>
-  ${far?`<div class="card pad farcard"><span class="small muted">Farthest from home</span><b>${flag(far.cc)} ${esc(far.name)}</b><span class="small">${fmtN(far.d)} km · ${fmtN(far.d*0.621371)} mi from ${esc(BY[home].name)}</span></div>`:home?'':`<button class="card pad farcard" data-st="home"><span class="small muted">Farthest from home</span><b>Set your home country</b><span class="small muted">Also used for days away and the Expat badge</span></button>`}
-  <h3 class="rhead"><span>Badges</span><small>${earned} of ${B.length}</small></h3>
-  <div class="badges" id="statBadges">${B.map(([nm,d,v,goal])=>{const on=v>=goal;return`<div class="badge${on?' on':''}"><span class="bico">${ic('star')}</span><b>${nm}</b><span>${esc(d)}</span>${on?'':`<span class="bprog"><i style="width:${Math.min(100,v/goal*100)}%"></i></span><small>${fmtN(Math.min(v,goal))} / ${fmtN(goal)}</small>`}</div>`}).join('')}</div>
-  <h3 class="rhead"><span>Lists</span></h3><div id="statLists"><div class="loading" style="position:static;padding:20px">Loading lists…</div></div>
-  ${yrs.length?`<h3 class="rhead"><span>Countries by year</span></h3><div class="card pad">${yrs.map(y=>`<div class="rbar"><span class="rn">${y}</span><span class="rv">${byYear[y].size}</span><div class="bar"><i style="width:${byYear[y].size/ymax*100}%"></i></div></div>`).join('')}</div>`:''}
-  ${fs.n?`<h3 class="rhead"><span>Flights</span><small>${fs.n} · ${fmtN(fs.km)} km</small></h3><div class="card pad fcard">
-    ${fs.longest?`<p class="small"><b>Longest:</b> ${fs.longest.from} → ${fs.longest.to}, ${fmtN(flightKm(fs.longest))} km</p>`:''}
-    <p class="small"><b>Top airports:</b> ${fs.ap.map(([c,k])=>`${c} (${k})`).join(', ')}</p><p class="small"><b>Top routes:</b> ${fs.rt.map(([c,k])=>`${c} (${k})`).join(', ')}</p>
+  <header class="pghead"><h1 class="h-pg">Stats</h1><p class="meta">How your travels spread across the world, and what’s next.</p></header>
+  <section class="headline"><p class="big"><span class="mono">${n.been}</span><small class="mono">/ ${n.total}</small></p><p class="meta">countries you’ve been to · ${pct}% of the world${n.terr?` · plus ${plural(n.terr,'territory')}`:''}${S.settings.ukSplit?' · UK nations counted separately':''}</p>
+    <div class="track" aria-hidden="true"><i style="width:${Math.min(100,pct)}%"></i></div>
+    <div class="btns" id="stBtns"><button class="btn sm" data-st="share">${ic('share')} Share picture</button><button class="btn sm ghost" data-st="timeline">${ic('clock')} Timeline</button></div></section>
+  <section><h2 class="sub">At a glance</h2><dl class="figs">${fig(conts.size+' <small>of 7</small>','continents')}${fig(fmtN(regs2),'states and regions')}${fig(fmtN(cities2),'cities')}${fig(fmtN(away),'days away from home')}${fig(fmtN(aps),'airports')}${fig(fmtN(fs.n),'flights')}${fig(fmtN(fs.km),'km flown')}${fig(S.plans.length,'plans')}${fig(photos,'photos')}${fig(S.friends.length,'friends’ maps')}</dl>
+  ${far?`<div class="farline"><span class="small muted">Farthest from home</span><b>${flag(far.cc)} ${esc(far.name)}</b><span class="small mono">${fmtN(far.d)} km · ${fmtN(far.d*0.621371)} mi from ${esc(BY[home].name)}</span></div>`:home?'':`<button class="farline" data-st="home"><span class="small muted">Farthest from home</span><b>Set your home country</b><span class="small muted">Also used for days away and the Expat badge</span></button>`}</section>
+  <section><h2 class="sub">By region <small>countries been to</small></h2>${bars(regs.map(r=>[esc(r.rn),r.b,r.t,`${r.b} of ${r.t}`]))}</section>
+  ${yrs.length?`<section><h2 class="sub">Countries by year</h2>${bars(yrs.map(y=>[y,byYear[y].size,ymax,byYear[y].size]))}</section>`:''}
+  <section><h2 class="sub">Badges <small>${earned} of ${B.length}</small></h2><div id="statBadges">${Bs.map(([nm,d,v,goal])=>{const on=v>=goal;return`<div class="ms${on?' done':''}">${ring(on,v/goal*100)}<b>${nm}</b><span>${esc(d)}</span><em class="mono">${on?'':`${fmtN(Math.min(v,goal))} / ${fmtN(goal)}`}</em></div>`}).join('')}</div></section>
+  <section><h2 class="sub">Lists</h2><div id="statLists"><div class="loading" style="position:static;padding:20px">Loading lists…</div></div></section>
+  ${fs.n?`<section><h2 class="sub">Flights <small>${fs.n} · ${fmtN(fs.km)} km</small></h2><div class="fcard">
+    ${fs.longest?`<p class="small"><b>Longest:</b> <span class="mono">${fs.longest.from} → ${fs.longest.to}</span>, ${fmtN(flightKm(fs.longest))} km</p>`:''}
+    <p class="small"><b>Top airports:</b> <span class="mono">${fs.ap.map(([c,k])=>`${c} (${k})`).join(', ')}</span></p><p class="small"><b>Top routes:</b> <span class="mono">${fs.rt.map(([c,k])=>`${c} (${k})`).join(', ')}</span></p>
     ${fs.al.length?`<p class="small"><b>Airlines:</b> ${fs.al.map(([c,k])=>`${esc(c)} (${k})`).join(', ')}</p>`:''}
     <p class="small muted">${(fs.km/40075).toFixed(2)}× around the Earth · ${(fs.km/384400*100).toFixed(1)}% of the way to the Moon</p>
-    <button class="btn sm ghost" data-st="flights">All flights</button></div>`:`<div class="card pad"><p class="small">Log flights to see distance flown, top routes and airlines.</p><div class="btnrow"><button class="btn sm" data-st="flights">${ic('plane')} Add flights</button><button class="btn sm ghost" data-st="import">Import from Flighty or others</button></div></div>`}
-  <h3 class="rhead"><span>By region</span></h3>
-  <div class="card pad">${regs.map(r=>`<div class="rbar"><span class="rn">${r.rn}</span><span class="rv">${r.b}/${r.t}</span><div class="bar"><i style="width:${r.t?r.b/r.t*100:0}%"></i></div></div>`).join('')}</div>`;
+    <div class="btns"><button class="btn sm ghost" data-st="flights">All flights</button></div></div></section>`:`<section><h2 class="sub">Flights</h2><p class="small">Log flights to see distance flown, top routes and airlines.</p><div class="btns"><button class="btn sm" data-st="flights">${ic('plane')} Add flights</button><button class="btn sm ghost" data-st="import">Import from Flighty or others</button></div></section>`}`;
   const lc=$('#statLists');if(lc)lc.innerHTML=await listsCardHTML();
 }
 
@@ -1367,7 +1393,8 @@ function incoming(){
   return false;
 }
 (async function main(){
-  await load();applyPalette();applyTheme();matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+  await load();applyPalette();applyTheme();
+  document.body.insertAdjacentHTML('beforeend',`<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${PATDEFS('p',12)}</defs></svg>`);matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
   wire();await regIndex();setTab('map');initMap();
   const busy=incoming();
   if(!S.settings.tourDone&&!busy)setTimeout(startTour,700);

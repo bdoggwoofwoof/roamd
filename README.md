@@ -14,17 +14,18 @@ A free personal travel tracker (a rebuild of the "Been" app). Plain static web a
 - **Disputed territories** switch (Somaliland, Northern Cyprus, Abkhazia, Crimea, Kashmir areas and more), never counted in your countries.
 - **Plans** by region → country → your own sections, with dates, status, reels/TikToks/YouTube that play inside, photos, checklist and notes.
 - **Compare** maps with friends through a link; **stats**; **backup file** with photos; CSV export.
-- **Colors**: presets (two color-blind friendly) or your own on a color wheel; light/dark.
+- **Atlas look** (Nov 2026, ported from the Roamd Atlas design pilot): Winkel Tripel map with a graticule and grey-green sea; Want to go striped and Drove through dotted so statuses differ without color; Lived in Carolina blue with a fine inner outline; Newsreader, Archivo and IBM Plex Mono; ink as the interface accent.
+- **Colors**: the Atlas set by default, other presets (two color-blind friendly) or your own on a color wheel; light/dark.
 - Ironwood-style spotlight **tour** with sample data, and Help with every limitation.
 
 Everything is saved on the device (localStorage + IndexedDB) and works offline after the first load.
 
 ## Files
 - `index.html`, `app.js`, `sw.js`, `manifest.webmanifest`, icons — the app.
-- `vendor/` — d3, topojson-client and the world map (world-atlas 50m).
+- `vendor/` — d3, d3-geo-projection (Winkel Tripel), topojson-client and the world map (world-atlas 50m).
 - `regions/<CC>.json` + `regions/index.json` — states/provinces per country; `cities.json`; `airports.json`; `disputed.json`.
 - `lists.json` (tick-off lists), `vendor/exifr.lite.umd.js` (reads photo locations).
-- `tools/` — `app.src.js` (source; `__RAW__` is replaced with `countries.txt` to make `app.js`), `build_regions.js` + `postprocess.py` (build `regions/` from Natural Earth admin-1), `build_lists.js` + `parks63.txt` (build `lists.json`).
+- `tools/` — `app.src.js` (source; run `tools/build.sh` to make `app.js`, which puts `countries.txt` in place of `__RAW__`), `build_regions.js` + `postprocess.py` (build `regions/` from Natural Earth admin-1), `build_lists.js` + `parks63.txt` (build `lists.json`).
 
 ## Data and credits
 - Countries, states/provinces, cities, disputed areas: [Natural Earth](https://www.naturalearthdata.com/) (public domain), via world-atlas.

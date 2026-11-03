@@ -52,7 +52,7 @@ const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">
 /* ---------- storage ---------- */
 const LS='roamed.v1';
 let S;
-const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'atlas',palV:2,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
+const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'blueridge',palV:3,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
 let dbp;
 function db(){return dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('roamed',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('photos',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
 async function idb(store,mode,fn){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(store,mode);let out;const r=fn(t.objectStore(store));if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
@@ -68,6 +68,7 @@ async function load(){
   const best=[a,b].filter(x=>x&&x.v).sort((x,y)=>(y.saved||0)-(x.saved||0))[0];
   S=Object.assign(blank(),best||{});const hadV=best&&best.settings&&best.settings.palV;S.settings=Object.assign(blank().settings,S.settings||{});
   if(best&&!hadV){if(!best.settings||!best.settings.palette||best.settings.palette==='classic')S.settings.palette='atlas';S.settings.palV=2}
+  if(best&&(S.settings.palV||0)<3){if(S.settings.palette==='atlas')S.settings.palette='blueridge';S.settings.palV=3}
 }
 let saveT;
 function save(){
@@ -201,7 +202,7 @@ function sizeDots(){if(!mapDots)return;const u=pxPerUnit();sizePatterns(u);
 function sizeBorders(){if(!gBord||!mapSvg)return;const u=pxPerUnit(),zf=Math.max(.25,Math.min(1,.1+.09*curK));gBord.selectAll('path').style('stroke-width',d=>`calc(var(--cbmax) * ${Math.max(.18,Math.min(zf,(d.sz||0)*u/140)).toFixed(3)})`)}
 // the big map's own on/off view for states (doesn't change the States setting)
 const stView=()=>S.settings.stView!==false;
-const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc));return t?(stView()&&partial(cc)?' t-':' s-')+t:''};
+const fillCls=cc=>{const t=tier(cs(cc));return t?(stView()&&partial(cc)?' t-':' s-')+t:''};
 function syncStBtn(){const b=$('#zstate');if(!b)return;const any=stCfg().stOn;b.hidden=!any;b.classList.toggle('on',stView());b.setAttribute('aria-pressed',stView());b.setAttribute('aria-label',stView()?'Hide states on the map':'Show states on the map')}
 function toggleStView(){S.settings.stView=!stView();save();syncStBtn();paintMap();toast(stView()?'States shown on the map':'States hidden on the map (your marks are kept)')}
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
@@ -217,6 +218,7 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
+  blueridge:['Blue Ridge','Carolina blue, sky, navy and pine',{been:'#7bafd4',want:'#3d5f80',lived:'#d6e6f4',drive:'#8dba9f'},{been:'#4b9cd3',want:'#a6cbe8',lived:'#13294b',drive:'#6f9e85'}],
   atlas:['Atlas','Teal, ochre, Carolina blue for Lived, sage',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
   classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
   sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
@@ -385,7 +387,7 @@ function paintInner(){
   if(!gInner)return;gInner.selectAll('*').remove();let i=0;
   const add=(d,cls)=>{const id='lv'+(i++);gInner.append('clipPath').attr('id',id).append('path').attr('d',d);gInner.append('path').attr('class','inner'+(cls||'')).attr('d',d).attr('clip-path',`url(#${id})`)};
   const partialOn=cc=>stView()&&partial(cc);
-  for(const p of PATHD){if(!p.cc||!cs(p.cc).lived||partialOn(p.cc)||p.cc===S.settings.home)continue;add(bigPath(p.f))}
+  for(const p of PATHD){if(!p.cc||!cs(p.cc).lived||partialOn(p.cc))continue;add(bigPath(p.f))}
   gReg&&gReg.selectAll('path').each(function(d){if(d&&rs(d.cc,d.id).lived)add(this.getAttribute('d'),' r')});
 }
 function planeMode(){const m=S.settings.planeMode;return m||(S.settings.planes===false?'off':'all')}
@@ -624,8 +626,8 @@ function badgeList(){const n=countTotals(),b=beenCCs(),conts=new Set(b.map(conti
 
 /* ---- home country ---- */
 const HOMECOL=['#2f5f8a','#9e4f30','#0f766e','#7c3aed','#be185d','#4b5563'];
-function homeHTML(){const h=S.settings.home;return`<div class="strow top"><span class="stname"><b>Home country</b><small>${h?flag(h)+' '+esc(BY[h].name)+' · shown in its own color':'Not set. Used for “farthest from home”, days away and the Expat badge.'}</small></span><button class="btn sm ghost" data-act="sethome">${h?'Change':'Set'}</button></div>
-  ${h?`<div class="homecols">${HOMECOL.map(c=>`<button class="hc${(S.settings.homeColor||HOMECOL[0])===c?' on':''}" data-hc="${c}" style="background:${c}" aria-label="Home color"></button>`).join('')}<button class="btn sm ghost" data-act="clearhome">Clear</button></div>`:''}`}
+function homeHTML(){const h=S.settings.home;return`<div class="strow top"><span class="stname"><b>Home country</b><small>${h?flag(h)+' '+esc(BY[h].name):'Not set. Used for “farthest from home”, days away and the Expat badge.'}</small></span><button class="btn sm ghost" data-act="sethome">${h?'Change':'Set'}</button></div>
+  ${h?`<div class="homecols"><button class="btn sm ghost" data-act="clearhome">Clear</button></div>`:''}`}
 
 /* ---- packing list ---- */
 const PACK_DEFAULT=['Passport','Phone charger','Plug adapter','Medications','Toiletries','Travel insurance details','Copies of bookings'];
@@ -646,9 +648,9 @@ async function makeSharePicture(kind){
   const top=story?ty0+110:210,mh=540;
   const proj=atlasProj().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
   ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=col.sea;ctx.fill();
-  const fillOf=cc=>{if(!cc)return col.land;if(cc===S.settings.home)return col.home;const t=tier(cs(cc));if(!t)return col.land;return partial(cc)?mix(col[t],col.land,.38):col[t]};
+  const fillOf=cc=>{if(!cc)return col.land;const t=tier(cs(cc));if(!t)return col.land;return partial(cc)?mix(col[t],col.land,.38):col[t]};
   for(const p of PATHD){ctx.beginPath();path(p.f);ctx.fillStyle=fillOf(p.cc);ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=.6;ctx.stroke()}
-  for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!statesOn(cc)||cc===S.settings.home)continue;let f;try{f=await regGeo(cc)}catch(e){continue}
+  for(const cc of Object.keys(S.countries)){const r=cs(cc).regions;if(!r||!statesOn(cc))continue;let f;try{f=await regGeo(cc)}catch(e){continue}
     for(const x of f){const t=tier(r[x.properties.id]||{});if(!t)continue;ctx.beginPath();path(x);ctx.fillStyle=col[t];ctx.fill()}}
   const ce=centroids();for(const d of DOTS){const t=tier(cs(d.cc));if(!t)continue;const p=ce[d.cc]&&proj([ce[d.cc][1],ce[d.cc][0]]);if(!p)continue;ctx.beginPath();ctx.arc(p[0],p[1],6,0,7);ctx.fillStyle=col[t];ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=2;ctx.stroke()}
   if(planeMode()!=='off'){ctx.strokeStyle=mix(col.ink,col.sea,.55);ctx.lineWidth=1.4;const seen=new Set();for(const f of flights()){const k=[f.from,f.to].sort().join();if(seen.has(k))continue;seen.add(k);ctx.beginPath();path({type:'LineString',coordinates:[[f.fl[1],f.fl[0]],[f.tl[1],f.tl[0]]]});ctx.stroke()}}
@@ -1273,7 +1275,7 @@ function demoState(){
 // Each step: [tab, open, selector, title, text, opts]. open: '' | 'country:US' | 'settings' | 'airports' | 'plan:p1'. No selector = centered card.
 const TOUR=[
   ['map','',null,'Welcome to Roamd','A quick look at what it can do. It takes about three minutes, and you can skip it any time. The places on the map are samples for the tour; they disappear when it ends.'],
-  ['map','','#mapBox','Your map','It fills in as you mark places: a color for Been, Want to go and Lived, and your home country in its own color. Tap any country to open it. Pinch or use + and − to zoom, and drag sideways to spin the world around as far as you like.'],
+  ['map','','#mapBox','Your map','It fills in as you mark places: a color for Been, Want to go, Lived and Drove through. Tap any country to open it. Pinch or use + and − to zoom, and drag sideways to spin the world around as far as you like.'],
   ['map','','#legend','Colors and counts','The numbers count countries. A country with marked states or cities turns a lighter shade, and the marked parts show in full color.'],
   ['map','','#regionSel','Jump to a region','Zoom straight to Europe, Southeast Asia, the Middle East and the rest.'],
   ['map','','#zfull','Full screen','Make the map fill the screen. Back, or the same button, returns. Country maps and Compare maps have one too.'],

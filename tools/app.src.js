@@ -8,7 +8,9 @@ RAW.split(';').forEach(r=>{const[n,cc,name,reg,core]=r.split('|');const o={n,cc,
 C.sort((a,b)=>a.name.localeCompare(b.name));
 const CORE=C.filter(c=>c.core).length;
 const MAPNAME={"Kosovo":"XK","N. Cyprus":"CY","Somaliland":"SO"};
-const CDN={d3:'vendor/d3.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
+const CDN={d3:'vendor/d3.min.js',proj:'vendor/d3-geo-projection.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
+// The atlas uses the Winkel Tripel projection (National Geographic's world map since 1998).
+const atlasProj=()=>d3.geoWinkel3();
 const STATUS_L={idea:'Idea',booked:'Booked',done:'Done'};
 const KL={been:'Been',want:'Want to go',lived:'Lived',drive:'Drove through'};
 const QL={been:'Been',want:'Want',lived:'Lived',drive:'Drove'};
@@ -110,15 +112,17 @@ let mapReady=false,mapSvg,mapG,mapPaths,mapDots,zoom,curK=1,FEATS=[],PATHD=[],DO
 // The big map spins east–west forever: sideways panning turns the projection (bigPath) instead of sliding it.
 // geoPath stays unrotated for everything else (small maps, bounds, photo lookups).
 let bigProj,bigPath,curRot=0,rotWant=0,rotRAF=0,EQ=1,mapOuter,wrapL,wrapR;
-const MW=1000,MH=520;
+const MW=1000,MH=616;
 function loadScript(src){return new Promise((res,rej)=>{if($(`script[src="${src}"]`))return res();const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.append(s)})}
 let geoP;
 function loadGeo(){return geoP||(geoP=(async()=>{
-  await loadScript(CDN.d3);await loadScript(CDN.topo);
+  await loadScript(CDN.d3);await loadScript(CDN.proj);await loadScript(CDN.topo);
   const topo=await (await fetch(CDN.map)).json();
   FEATS=topojson.feature(topo,topo.objects.countries).features;
-  const proj=d3.geoNaturalEarth1().fitExtent([[4,4],[MW-4,MH-4]],{type:'Sphere'});
-  geoPath=d3.geoPath(proj);bigProj=d3.geoNaturalEarth1().scale(proj.scale()).translate(proj.translate());bigPath=d3.geoPath(bigProj);EQ=proj.scale()*0.8707;
+  const proj=atlasProj().fitExtent([[4,4],[MW-4,MH-4]],{type:'Sphere'});
+  geoPath=d3.geoPath(proj);bigProj=atlasProj().scale(proj.scale()).translate(proj.translate());bigPath=d3.geoPath(bigProj);
+  // EQ: map units per radian of longitude along the equator (Winkel Tripel is linear there), so the side copies line up
+  EQ=(proj([90,0])[0]-proj([0,0])[0])/(Math.PI/2);
   // Split overseas parts that the map data glues onto the home country, so each fills only for itself.
   const SPLIT={FR:(x,y)=>x<-30?(y<8?'GF':y>15.5?'GP':'MQ'):x>40&&y<0?(x>50?'RE':'YT'):'',NL:x=>x<-30?'BQ':'',NO:(x,y)=>y>74||x<-5?'SJ':''};
   const parts=[];
@@ -147,9 +151,11 @@ async function initMap(){
   mapSvg=d3.select(box).append('svg').attr('viewBox',`0 0 ${MW} ${MH}`).attr('class','map').attr('role','img').attr('aria-label','World map');
   mapG=mapSvg.append('g');const outer=mapG;mapG=outer.append('g').attr('id','roamWorld');
   wrapL=outer.append('use').attr('href','#roamWorld').attr('class','wrapc').attr('x',-2*Math.PI*EQ);wrapR=outer.append('use').attr('href','#roamWorld').attr('class','wrapc').attr('x',2*Math.PI*EQ);mapOuter=outer;
+  mapSvg.append('defs').html(PATDEFS('b'));
   mapG.append('path').attr('class','sphere').attr('d',bigPath({type:'Sphere'}));
+  mapG.append('path').attr('class','grat').datum(d3.geoGraticule10()).attr('d',bigPath);
   mapPaths=mapG.selectAll('path.c').data(PATHD).join('path').attr('d',d=>bigPath(d.f)).attr('data-cc',d=>d.cc).attr('class','c');
-  gReg=mapG.append('g').attr('class','regs');gBord=mapG.append('g').attr('class','bords');gDisp=mapG.append('g').attr('class','disp');
+  gReg=mapG.append('g').attr('class','regs');gInner=mapG.append('g').attr('class','inners');gBord=mapG.append('g').attr('class','bords');gDisp=mapG.append('g').attr('class','disp');
   mapDots=mapG.selectAll('g.dotg').data(DOTS).join('g').attr('class','dotg').attr('transform',d=>{const q=bigProj(d.ll);return`translate(${q[0]},${q[1]})`});
   mapDots.append('circle').attr('class','hit');mapDots.append('circle').attr('class','dm');
   gFlight=mapG.append('g').attr('class','flights');gList=mapG.append('g').attr('class','lmks');gCity=mapG.append('g').attr('class','cities');gPlane=mapG.append('g').attr('class','planes');
@@ -173,10 +179,10 @@ function applyT(t){curK=t.k;const cx=MW/2-t.k*MW/2;rotWant=(t.x-cx)/(t.k*EQ)*180
 function needRecentre(){if(!mapReady)return false;const t=d3.zoomTransform(mapSvg.node());const{vw}=viewDims(),vx=t.x-rad(curRot)*t.k*EQ,L=(MW/2-vw/2-vx)/t.k,Rr=(MW/2+vw/2-vx)/t.k,half=Math.PI*EQ;
   return Math.abs(rotWant-curRot)>.05&&(L<MW/2-half+4||Rr>MW/2+half-4)}
 function reproject(r0){if(!mapReady)return;curRot=r0==null?rotWant:r0;const r=((curRot+180)%360+360)%360-180;bigProj.rotate([r,0]);
-  mapPaths.attr('d',d=>bigPath(d.f));
+  mapPaths.attr('d',d=>bigPath(d.f));mapG.select('.grat').attr('d',bigPath);
   mapDots.attr('transform',d=>{const q=bigProj(d.ll);d.x=q[0];d.y=q[1];return`translate(${q[0]},${q[1]})`});
   gReg.selectAll('path').attr('d',d=>bigPath(d.f));gBord.selectAll('path').attr('d',d=>bigPath(d.f));gDisp.selectAll('path').attr('d',d=>bigPath(d));
-  paintPoints();paintFlights();paintLists();applyT(d3.zoomTransform(mapSvg.node()))}
+  paintInner();paintPoints();paintFlights();paintLists();applyT(d3.zoomTransform(mapSvg.node()))}
 function zoomRegion(rc){
   if(!mapReady)return;if(!rc){fitStart();return}
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -186,7 +192,7 @@ function zoomRegion(rc){
   mapSvg.transition().duration(600).call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(x0+x1)/2+rad(curRot)*k*EQ,MH/2-k*(y0+y1)/2).scale(k));
 }
 function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.min(r.width/MW,r.height/MH)||.4)*curK}
-function sizeDots(){if(!mapDots)return;const u=pxPerUnit();
+function sizeDots(){if(!mapDots)return;const u=pxPerUnit();sizePatterns(u);
   // dots shrink away once you've zoomed in far enough to see the real shape
   mapDots.style('display',u>14?'none':null);
   mapDots.select('.dm').attr('r',d=>(tier(cs(d.cc))?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}
@@ -198,7 +204,7 @@ const fillCls=cc=>{if(cc&&cc===S.settings.home)return' home';const t=tier(cs(cc)
 function syncStBtn(){const b=$('#zstate');if(!b)return;const any=stCfg().stOn;b.hidden=!any;b.classList.toggle('on',stView());b.setAttribute('aria-pressed',stView());b.setAttribute('aria-label',stView()?'Hide states on the map':'Show states on the map')}
 function toggleStView(){S.settings.stView=!stView();save();syncStBtn();paintMap();toast(stView()?'States shown on the map':'States hidden on the map (your marks are kept)')}
 function paintMap(){if(!mapReady)return;mapPaths.attr('class',d=>d.cc?'c'+fillCls(d.cc):'c none');
-  mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
+  mapDots.attr('class',d=>'dotg'+fillCls(d.cc));paintInner();paintPoints();paintFlights();paintLists();sizeDots();paintRegions();paintDisputed()}
 function counts(){let been=0,want=0,lived=0,terr=0,drive=0;for(const c of C){if(c.disp)continue;const s=cs(c.cc);if(s.been){c.core?been++:terr++}if(s.want&&!s.been&&!s.drive)want++;if(s.lived)lived++;if(s.drive&&(c.core||S.settings.countTerr))drive++}const t=countTotals();return{been:t.been,total:t.total,want,lived,drive,terr:S.settings.countTerr?0:terr}}
 function renderMapView(){
   paintMap();const n=counts();
@@ -232,7 +238,7 @@ function customPal(c){
 function customFrom(k){const P=PALETTES[k]||PALETTES.classic;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
 const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.atlas;
 function palVars(c){return KEYS.map(k=>`--${k}:${c[k]};--${k}-ink:${inkFor(c[k])};`).join('')}
-function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#c4532d')}
+function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#2f5f8a')}
 function applyPalette(){applyHomeColor();
   let el=$('#palette');const k=S.settings.palette||'atlas';
   if(k==='atlas'){if(el)el.remove();return}
@@ -367,7 +373,20 @@ async function drawMini(box,cc,sel){
 }
 
 /* main map overlays */
-let gReg,gBord,gCity,gPlane,regBusy=0;
+let gReg,gBord,gCity,gPlane,gInner,regBusy=0;
+/* Status patterns: Want to go is striped, Drove through is dotted, so statuses differ without color.
+   p = id prefix ('b' for the big map, sized to the screen; 'p' for the small maps, sized in map units). */
+const PATDEFS=(p,u=5)=>`<pattern id="${p}Want" patternUnits="userSpaceOnUse" width="${u}" height="${u}" patternTransform="rotate(45)"><rect class="pw-bg" width="${u}" height="${u}"/><line class="pw-ln" x1="0" y1="0" x2="0" y2="${u}" style="stroke-width:${u*.3}"/></pattern><pattern id="${p}Drive" patternUnits="userSpaceOnUse" width="${u*.9}" height="${u*.9}"><rect class="pd-bg" width="${u*.9}" height="${u*.9}"/><circle class="pd-dot" cx="${u*.45}" cy="${u*.45}" r="${u*.16}"/></pattern><pattern id="${p}Me" patternUnits="userSpaceOnUse" width="${u*.8}" height="${u*.8}"><rect class="pm-bg" width="${u*.8}" height="${u*.8}"/><line class="pm-ln" x1="0" y1="0" x2="${u*.8}" y2="0" style="stroke-width:${u*.28}"/></pattern><pattern id="${p}Them" patternUnits="userSpaceOnUse" width="${u*.8}" height="${u*.8}" patternTransform="rotate(45)"><rect class="pt-bg" width="${u*.8}" height="${u*.8}"/><line class="pt-ln" x1="0" y1="0" x2="0" y2="${u*.8}" style="stroke-width:${u*.26}"/></pattern>`;
+// keep the big map's stripes and dots the same size on screen at any zoom
+function sizePatterns(u){if(!mapSvg)return;const s=1/u;mapSvg.select('#bWant').attr('patternTransform',`rotate(45) scale(${s})`);mapSvg.select('#bDrive').attr('patternTransform',`scale(${s})`)}
+/* Lived places get a fine inner outline as well as Carolina blue, so Lived and Been differ without color (countries and states). */
+function paintInner(){
+  if(!gInner)return;gInner.selectAll('*').remove();let i=0;
+  const add=(d,cls)=>{const id='lv'+(i++);gInner.append('clipPath').attr('id',id).append('path').attr('d',d);gInner.append('path').attr('class','inner'+(cls||'')).attr('d',d).attr('clip-path',`url(#${id})`)};
+  const partialOn=cc=>stView()&&partial(cc);
+  for(const p of PATHD){if(!p.cc||!cs(p.cc).lived||partialOn(p.cc)||p.cc===S.settings.home)continue;add(bigPath(p.f))}
+  gReg&&gReg.selectAll('path').each(function(d){if(d&&rs(d.cc,d.id).lived)add(this.getAttribute('d'),' r')});
+}
 function planeMode(){const m=S.settings.planeMode;return m||(S.settings.planes===false?'off':'all')}
 function planeShown(x){const m=planeMode();if(m==='off')return false;if(m==='notbeen'&&x.cc){const s=cs(x.cc);if(s.been||s.lived)return false}return true}
 function planeSegHTML(){return`<div class="seg" role="group" aria-label="Airplanes on the map">${[['all','All airports'],['notbeen','Hide where I’ve been'],['off','Off']].map(([v,l])=>`<button data-act="planes" data-v="${v}" class="${planeMode()===v?'on':''}">${l}</button>`).join('')}</div>`}
@@ -381,6 +400,7 @@ async function paintRegions(){
   gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>bigPath(d.f)).attr('class','cb');sizeBorders();
   mapSvg.classed('stmode',ccs.size>0);
   gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').on('click',(e,d)=>openCountry(d.cc,d.id))).attr('d',d=>bigPath(d.f)).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
+  paintInner();
 }
 function paintPoints(){
   if(!mapReady)return;const P=bigProj;
@@ -602,7 +622,7 @@ function badgeList(){const n=countTotals(),b=beenCCs(),conts=new Set(b.map(conti
     ['Time traveler','Dated visits in 5 different years',yrs,5],['Planner','Make 5 plans',S.plans.length,5]]}
 
 /* ---- home country ---- */
-const HOMECOL=['#c4532d','#0f766e','#7c3aed','#be185d','#1d4ed8','#4b5563'];
+const HOMECOL=['#2f5f8a','#9e4f30','#0f766e','#7c3aed','#be185d','#4b5563'];
 function homeHTML(){const h=S.settings.home;return`<div class="strow top"><span class="stname"><b>Home country</b><small>${h?flag(h)+' '+esc(BY[h].name)+' · shown in its own color':'Not set. Used for “farthest from home”, days away and the Expat badge.'}</small></span><button class="btn sm ghost" data-act="sethome">${h?'Change':'Set'}</button></div>
   ${h?`<div class="homecols">${HOMECOL.map(c=>`<button class="hc${(S.settings.homeColor||HOMECOL[0])===c?' on':''}" data-hc="${c}" style="background:${c}" aria-label="Home color"></button>`).join('')}<button class="btn sm ghost" data-act="clearhome">Clear</button></div>`:''}`}
 
@@ -623,7 +643,7 @@ async function makeSharePicture(kind){
   ctx.fillStyle=col.ink;ctx.font=`700 ${story?76:64}px ${serif}`;ctx.textBaseline='alphabetic';ctx.fillText(S.me?`${S.me}’s travel map`:'My travel map',60,ty0);
   ctx.fillStyle=col.muted;ctx.font=`500 30px ${sans}`;ctx.fillText(new Date().toLocaleDateString(undefined,{month:'long',year:'numeric'}),60,ty0+48);
   const top=story?ty0+110:210,mh=540;
-  const proj=d3.geoNaturalEarth1().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
+  const proj=atlasProj().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
   ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=col.sea;ctx.fill();
   const fillOf=cc=>{if(!cc)return col.land;if(cc===S.settings.home)return col.home;const t=tier(cs(cc));if(!t)return col.land;return partial(cc)?mix(col[t],col.land,.38):col[t]};
   for(const p of PATHD){ctx.beginPath();path(p.f);ctx.fillStyle=fillOf(p.cc);ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=.6;ctx.stroke()}
@@ -1369,7 +1389,8 @@ function incoming(){
   return false;
 }
 (async function main(){
-  await load();applyPalette();applyTheme();matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+  await load();applyPalette();applyTheme();
+  document.body.insertAdjacentHTML('beforeend',`<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${PATDEFS('p',12)}</defs></svg>`);matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
   wire();await regIndex();setTab('map');initMap();
   const busy=incoming();
   if(!S.settings.tourDone&&!busy)setTimeout(startTour,700);

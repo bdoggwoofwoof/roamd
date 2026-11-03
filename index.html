@@ -168,7 +168,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .cw-prev{display:flex;gap:6px;margin:6px 0}.cw-prev span{flex:1;text-align:center;padding:10px 4px;border-radius:var(--r-md);font-weight:700;font-size:var(--t-md)}
 
 /* v4 */
-:root{--home:#c4532d}
+:root{--home:#2f5f8a}
 .c.home,.dotg.home .dm{fill:var(--home)}
 .farc{fill:none;stroke:var(--ink);stroke-opacity:.45;stroke-width:1.1;vector-effect:non-scaling-stroke;pointer-events:none}
 .lmk{fill:none;stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;opacity:.7}.lmk.done{fill:var(--been);stroke:var(--card);opacity:1}
@@ -383,6 +383,33 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 .av{background:var(--ink);color:var(--bg)}
 .b-booked{background:color-mix(in srgb,var(--want) 22%,transparent)}.b-done{background:color-mix(in srgb,var(--been) 22%,transparent)}
 .rtag{background:transparent;color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--border);font-weight:500}
+
+/* ---- atlas map ---- */
+.mapwrap,.cmini,.fsmap,.map.small{background:var(--sea)}
+.sphere{fill:var(--sea)}
+.grat{fill:none;stroke:var(--grat);stroke-width:.8;vector-effect:non-scaling-stroke;pointer-events:none}
+.c{fill:var(--land);stroke:var(--border);stroke-width:.45;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.c.s-lived,.dotg.s-lived .dm{stroke:color-mix(in srgb,var(--ink) 55%,transparent)}
+#mapBox .c.s-want,#mapBox .rg.s-want,#mapBox .dotg.s-want .dm{fill:url(#bWant)}
+#mapBox .c.s-drive,#mapBox .rg.s-drive,#mapBox .dotg.s-drive .dm{fill:url(#bDrive)}
+.small .c.s-want,.mini .rg.s-want,.fsmap .c.s-want,.fsmap .rg.s-want{fill:url(#pWant)}
+.small .c.s-drive,.mini .rg.s-drive,.fsmap .c.s-drive,.fsmap .rg.s-drive{fill:url(#pDrive)}
+.c.t-been{fill:var(--been-t)}.c.t-want{fill:var(--want-t)}.c.t-drive{fill:var(--drive-t)}.c.t-lived{fill:color-mix(in srgb,var(--lived) 34%,var(--land))}
+.pw-bg{fill:var(--want-t)}.pw-ln{stroke:var(--want)}.pd-bg{fill:var(--drive-t)}.pd-dot{fill:var(--drive)}
+.pm-bg{fill:color-mix(in srgb,var(--ink) 14%,var(--land))}.pm-ln{stroke:var(--ink-2)}
+.pt-bg{fill:color-mix(in srgb,var(--them) 20%,var(--land))}.pt-ln{stroke:var(--them)}
+.map .rg{stroke:color-mix(in srgb,var(--ink) 18%,transparent);stroke-width:.4}
+.map .rg.s-been,.map .rg.s-want,.map .rg.s-drive{stroke:color-mix(in srgb,var(--land) 60%,transparent)}
+.map .rg.s-lived,.mini .rg.s-lived{stroke:color-mix(in srgb,var(--ink) 55%,transparent)}
+.inner{fill:none;stroke:var(--land);stroke-width:2.6;vector-effect:non-scaling-stroke;opacity:.95;pointer-events:none}
+.inner.r{stroke-width:2}
+.mini .rg{fill:var(--land);stroke:color-mix(in srgb,var(--ink) 22%,transparent)}
+.mini .rg.sel{stroke:var(--ink);stroke-width:2.5}
+.city{stroke:var(--bg);stroke-width:1.2}
+.city.s-lived{fill:var(--land);stroke:var(--lived);stroke-width:3}
+.cb{stroke:color-mix(in srgb,var(--ink) 45%,var(--bg))}
+.farc{stroke:var(--ink);stroke-opacity:.4}
+.plane{fill:var(--ink);stroke:var(--bg)}
 </style>
 </head>
 <body>

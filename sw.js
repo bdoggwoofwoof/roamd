@@ -1,6 +1,6 @@
-const V='roamd-v10';
+const V='roamd-v11';
 const SHELL=['./','index.html','app.js','manifest.webmanifest','icon.svg','icon-512.png','apple-touch-icon.png'];
-const CDN=['vendor/d3.min.js','vendor/topojson-client.min.js','vendor/countries-50m.json','regions/index.json'];
+const CDN=['vendor/d3.min.js','vendor/d3-geo-projection.min.js','vendor/topojson-client.min.js','vendor/countries-50m.json','regions/index.json'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL).then(()=>Promise.all(CDN.map(u=>c.add(u).catch(()=>{}))))));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{

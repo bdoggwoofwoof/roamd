@@ -49,7 +49,7 @@ const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">
 /* ---------- storage ---------- */
 const LS='roamed.v1';
 let S;
-const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'classic',palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
+const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'atlas',palV:2,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
 let dbp;
 function db(){return dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('roamed',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('photos',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
 async function idb(store,mode,fn){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(store,mode);let out;const r=fn(t.objectStore(store));if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
@@ -63,7 +63,8 @@ async function load(){
   try{const raw=localStorage.getItem(LS);if(raw)a=JSON.parse(raw)}catch(e){try{localStorage.setItem(LS+'.broken',localStorage.getItem(LS))}catch(_){}}
   try{b=await kvGet('state')}catch(e){}
   const best=[a,b].filter(x=>x&&x.v).sort((x,y)=>(y.saved||0)-(x.saved||0))[0];
-  S=Object.assign(blank(),best||{});S.settings=Object.assign(blank().settings,S.settings||{});
+  S=Object.assign(blank(),best||{});const hadV=best&&best.settings&&best.settings.palV;S.settings=Object.assign(blank().settings,S.settings||{});
+  if(best&&!hadV){if(!best.settings||!best.settings.palette||best.settings.palette==='classic')S.settings.palette='atlas';S.settings.palV=2}
 }
 let saveT;
 function save(){
@@ -209,6 +210,7 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
+  atlas:['Atlas','Teal, ochre stripes, Carolina blue for Lived, sage dots',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
   classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
   sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
   ocean:['Ocean','',{been:'#2ec4d6',want:'#9be564',lived:'#6f8cff',drive:'#ffb86b'},{been:'#00838f',want:'#4f9d2a',lived:'#3352d6',drive:'#d9822b'}],
@@ -228,18 +230,18 @@ function customPal(c){
   return['Custom','Your three colors',mk(dark),mk(light)];
 }
 function customFrom(k){const P=PALETTES[k]||PALETTES.classic;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
-const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.classic;
+const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.atlas;
 function palVars(c){return KEYS.map(k=>`--${k}:${c[k]};--${k}-ink:${inkFor(c[k])};`).join('')}
 function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#c4532d')}
 function applyPalette(){applyHomeColor();
-  let el=$('#palette');const k=S.settings.palette||'classic';
-  if(k==='classic'){if(el)el.remove();return}
+  let el=$('#palette');const k=S.settings.palette||'atlas';
+  if(k==='atlas'){if(el)el.remove();return}
   if(!el){el=document.createElement('style');el.id='palette';document.head.appendChild(el)}
   const P=palFor(k),d=P[2],l=P[3];
-  el.textContent=`html:root{${palVars(l)}}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}}}html:root[data-theme="dark"]{${palVars(d)}}`;
+  el.textContent=`html:root{${palVars(l)}--want-ink:#1f2a33;}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}}}html:root[data-theme="dark"]{${palVars(d)}}`;
 }
 function paletteHTML(){
-  const cur=S.settings.palette||'classic',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
+  const cur=S.settings.palette||'atlas',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
   const sw=P=>{const c=P[dark?2:3];return`<span class="sw">${KEYS.map(k=>`<i style="background:${c[k]}"></i>`).join('')}</span>`};
   return`<div class="pal-grid">${Object.entries(PALETTES).map(([k,P])=>`<button class="pal${cur===k?' on':''}" data-act="pal" data-v="${k}" aria-pressed="${cur===k}">${sw(P)}<span class="pn">${P[0]}</span>${P[1]?`<span class="pd">${P[1]}</span>`:''}</button>`).join('')}
   <button class="pal${cur==='custom'?' on':''}" data-act="palcustom" aria-pressed="${cur==='custom'}">${sw(customPal())}<span class="pn">Custom</span><span class="pd">${S.settings.palCustom?'Tap to edit':'Pick your own three'}</span></button></div>`;
@@ -610,12 +612,12 @@ const packList=()=>S.settings.packing&&S.settings.packing.length?S.settings.pack
 
 /* ---- share picture ---- */
 async function makeSharePicture(kind){
-  await loadGeo();try{await document.fonts.load('700 60px Fraunces')}catch(e){}
+  await loadGeo();try{await document.fonts.load('500 60px Newsreader')}catch(e){}
   const W=1080,H=kind==='story'?1920:1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
   const v=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const col={bg:v('--bg'),card:v('--card'),ink:v('--ink'),muted:v('--muted'),land:v('--land'),sea:v('--sea'),line:v('--line'),been:v('--been'),want:v('--want'),lived:v('--lived'),drive:v('--drive'),home:S.settings.homeColor||HOMECOL[0]};
   const mix=(a,b,t)=>{const p=h=>{h=h.replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};try{const A=p(a),B=p(b);return'#'+A.map((x,i)=>Math.round(x*t+B[i]*(1-t)).toString(16).padStart(2,'0')).join('')}catch(e){return a}};
-  const serif='Fraunces, Georgia, serif',sans='-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',emo='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  const serif='Newsreader, Georgia, serif',sans='Archivo, "Helvetica Neue", Arial, sans-serif',emo='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
   ctx.fillStyle=col.bg;ctx.fillRect(0,0,W,H);
   const story=kind==='story',ty0=story?230:120;
   ctx.fillStyle=col.ink;ctx.font=`700 ${story?76:64}px ${serif}`;ctx.textBaseline='alphabetic';ctx.fillText(S.me?`${S.me}’s travel map`:'My travel map',60,ty0);

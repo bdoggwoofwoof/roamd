@@ -243,13 +243,20 @@ function customPal(c){
 }
 function customFrom(k){const P=PALETTES[k]||PALETTES.blueridge;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
 const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.blueridge;
+// Greys for the unmarked part of a country you've partly marked (seen when zoomed in): each matches its status color's darkness,
+// shifted a shade (lighter in light mode, darker in dark mode) but never so far that it fades into empty land.
+function greyFor(hex,mode){const land=mode==='light'?lum('#fbf8f0'):lum('#252e37');const cr=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+  let L=lum(hex);L=mode==='light'?Math.min(1,(L+.05)*1.3-.05):Math.max(0,(L+.05)/1.3-.05);
+  for(let i=0;i<40&&cr(L,land)<1.7;i++)L=mode==='light'?L*.94:Math.min(1,L*1.08+.004);
+  const v=L<=.0031308*12.92/12.92&&L<.0031308?L*12.92:1.055*Math.pow(L,1/2.4)-.055;const n=Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0');return'#'+n+n+n}
+function greyVars(c,mode){return[...KEYS.map(k=>`--g-${k}:${greyFor(c[k],mode)};`),`--g-plan:${greyFor('#8a959e',mode)};`].join('')}
 function palVars(c){return KEYS.map(k=>`--${k}:${c[k]};--${k}-ink:${inkFor(c[k])};`).join('')}
 function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#2f5f8a')}
 function applyPalette(){applyHomeColor();
   let el=$('#palette');const k=S.settings.palette||'blueridge';
   if(!el){el=document.createElement('style');el.id='palette';document.head.appendChild(el)}
   const P=palFor(k),d=P[2],l=P[3];
-  el.textContent=`html:root{${palVars(l)}--want-ink:#1f2a33;}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}}}html:root[data-theme="dark"]{${palVars(d)}}`;
+  el.textContent=`html:root{${palVars(l)}${greyVars(l,'light')}--want-ink:#1f2a33;}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}${greyVars(d,'dark')}}}html:root[data-theme="dark"]{${palVars(d)}${greyVars(d,'dark')}}`;
 }
 function paletteHTML(){
   const cur=S.settings.palette||'blueridge',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);

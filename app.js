@@ -407,7 +407,7 @@ async function paintRegions(){
   const ccs=new Set(data.map(d=>d.cc));
   gBord.selectAll('path').data(PATHD.filter(p=>p.cc&&ccs.has(p.cc)).map(p=>{if(p.sz==null){const b=mainBounds(p.f);p.sz=Math.max(b[1][0]-b[0][0],b[1][1]-b[0][1])}return p}),d=>d.cc+'|'+d.d.length).join('path').attr('d',d=>bigPath(d.f)).attr('class','cb');sizeBorders();
   mapSvg.classed('stmode',ccs.size>0);
-  gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').on('click',(e,d)=>openCountry(d.cc,d.id))).attr('d',d=>bigPath(d.f)).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:'')});
+  gReg.selectAll('path').data(data,d=>d.cc+'|'+d.id).join(en=>en.append('path').on('click',(e,d)=>openCountry(d.cc,d.id))).attr('d',d=>bigPath(d.f)).attr('class',d=>{const t=tier(rs(d.cc,d.id));return'rg'+(t?' s-'+t:' s-none')});
   paintInner();
 }
 function paintPoints(){

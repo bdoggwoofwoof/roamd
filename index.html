@@ -481,6 +481,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 :root[data-theme="dark"]{--plan:#7d8891}
 .c.s-plan,.dotg.s-plan .dm,.rg.s-plan{fill:var(--plan)}
 .dot.plan{background:var(--plan);box-shadow:none}
+
+/* in state view, states you haven't marked are empty land, not the country's color */
+#mapBox .rg.s-none{fill:var(--land);stroke:color-mix(in srgb,var(--ink) 20%,var(--land))}
 </style>
 </head>
 <body>

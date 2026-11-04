@@ -11,14 +11,14 @@ const MAPNAME={"Kosovo":"XK","N. Cyprus":"CY","Somaliland":"SO"};
 const CDN={d3:'vendor/d3.min.js',proj:'vendor/d3-geo-projection.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
 // The atlas uses the Winkel Tripel projection (National Geographic's world map since 1998).
 // Map projections people can pick in Settings. All of them spin east–west the same way.
-const PROJS={
-  winkel:['Winkel Tripel','Balanced shapes and sizes, the National Geographic world map',()=>d3.geoWinkel3()],
-  miller:['Miller','Rectangular, like Been; the far north looks bigger',()=>d3.geoMiller()],
-  equalearth:['Equal Earth','Every country at its true size',()=>d3.geoEqualEarth()],
-  robinson:['Robinson','Rounded classroom map',()=>d3.geoRobinson()],
+const PROJS={ // [name, one line, pro, con, make]
+  winkel:['Winkel Tripel','The National Geographic world map','The best all-round balance of shape, size and distance','Curved edges, and nothing is exactly true',()=>d3.geoWinkel3()],
+  miller:['Miller','Rectangular, like Been','Fills a phone screen; north is always straight up','The far north looks far too big: Greenland, Alaska, Canada and Russia',()=>d3.geoMiller()],
+  equalearth:['Equal Earth','Every country at its true size','Fair sizes, so Africa and South America look as big as they are','Shapes near the poles look squashed and slanted',()=>d3.geoEqualEarth()],
+  robinson:['Robinson','The rounded classroom map','Familiar and easy on the eye, with little distortion in the middle','Neither true sizes nor true shapes; the poles are stretched wide',()=>d3.geoRobinson()],
 };
 const projKey=()=>{try{return PROJS[S.settings.proj]?S.settings.proj:'winkel'}catch(e){return'winkel'}};
-const atlasProj=()=>PROJS[projKey()][2]();
+const atlasProj=()=>PROJS[projKey()][4]();
 // Fit the world into the map box. Miller is too tall to fit whole, so it fills the width and trims the poles, like Been.
 function fitWorld(p,x0,y0,x1,y1){if(projKey()!=='miller')return p.fitExtent([[x0,y0],[x1,y1]],{type:'Sphere'});
   p.fitWidth(x1-x0,{type:'Sphere'});const[tx]=p.translate();const top=p([0,83])[1];p.translate([tx+x0,p.translate()[1]+y0-top]);return p}
@@ -1134,9 +1134,9 @@ function openSettings(){
       el.innerHTML=`${shead('<span class="tt"><b>Settings</b></span>')}<div class="sbody">
       <h4 class="sub">Theme</h4><div class="seg">${['auto','light','dark'].map(t=>`<button data-act="theme" data-v="${t}" class="${S.settings.theme===t?'on':''}">${t==='auto'?'Match phone':t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>
       <h4 class="sub">Map colors</h4>${paletteHTML()}
-      <h4 class="sub">Map style</h4><div class="seg">${[['atlas','Atlas'],['clean','Clean']].map(([k,l])=>`<button data-act="mstyle" data-v="${k}" class="${(S.settings.mapStyle||'atlas')===k?'on':''}" aria-pressed="${(S.settings.mapStyle||'atlas')===k}">${l}</button>`).join('')}</div>
+      <h4 class="sub">Map style</h4><div class="seg" id="mstyleSeg">${[['atlas','Atlas'],['clean','Clean']].map(([k,l])=>`<button data-act="mstyle" data-v="${k}" class="${(S.settings.mapStyle||'atlas')===k?'on':''}" aria-pressed="${(S.settings.mapStyle||'atlas')===k}">${l}</button>`).join('')}</div>
       <p class="small muted">${(S.settings.mapStyle||'atlas')==='clean'?'Flat land and plain sea, no grid lines.':'Paper land, soft sea and latitude lines.'}</p>
-      <h4 class="sub">Projection</h4><div class="card projlist">${Object.entries(PROJS).map(([k,P])=>`<button class="strow top projrow${projKey()===k?' on':''}" data-act="proj" data-v="${k}" aria-pressed="${projKey()===k}"><span class="stname"><b>${P[0]}</b><small>${P[1]}</small></span>${projKey()===k?ic('check'):''}</button>`).join('')}</div>
+      <h4 class="sub">Projection</h4><div class="card projlist">${Object.entries(PROJS).map(([k,P])=>`<button class="strow top projrow${projKey()===k?' on':''}" data-act="proj" data-v="${k}" aria-pressed="${projKey()===k}"><span class="stname"><b>${P[0]}</b><small>${P[1]}</small><small class="pc"><span class="pro">+</span> ${P[2]}</small><small class="pc"><span class="con">−</span> ${P[3]}</small></span>${projKey()===k?ic('check'):''}</button>`).join('')}</div>
       <h4 class="sub">Counting</h4><div id="cntBox"><div class="strow top"><span class="stname"><b>UK nations as four countries</b><small>England, Scotland, Wales and Northern Ireland each count once you mark one of their regions</small></span>${switchHTML(!!S.settings.ukSplit,'data-act="uk"','UK nations as four countries')}</div>
       <div class="strow top"><span class="stname"><b>Count territories</b><small>Puerto Rico, Greenland, Hong Kong and the other ${realC().filter(c=>!c.core).length} territories count toward your total</small></span>${switchHTML(!!S.settings.countTerr,'data-act="terr"','Count territories')}</div>
       <div class="strow top"><span class="stname"><b>Count “Drove through”</b><small>Places you only passed through count toward your total</small></span>${switchHTML(!!S.settings.countDrive,'data-act="cdrive"','Count drove through')}</div>
@@ -1324,8 +1324,10 @@ const TOUR=[
   ['stats','','#stBtns','Share and look back','Make a picture of your map and numbers for Instagram, or open your timeline and replay your map year by year.'],
   ['stats','','#statBadges','Badges','Milestones like 25 countries, every continent, all 50 states or flying around the world. Ones still to earn show your progress.'],
   ['stats','','#statLists','Lists to tick off','All 1,273 UNESCO World Heritage sites, world capitals, the New 7 Wonders and the 63 US national parks. Each can show on your map.'],
-  ['map','settings','.pal-grid','Make it yours','Pick map colors, including two color-blind friendly sets, or choose your own three on a color wheel.'],
-  ['map','settings','#cntBox','How you count','Count England, Scotland, Wales and Northern Ireland separately, count territories, and set your home country and its color.'],
+  ['map','settings','.pal-grid','Make it yours','Pick map colors: Blue Ridge, Forest, two color-blind friendly sets, or your own on a color wheel. Lived, Been, Drove through and Want to go each keep their color in light and dark.'],
+  ['map','settings','#mstyleSeg','Map style','Atlas has paper land, a soft sea and latitude lines. Clean is flat land on a plain sea with no lines, black in dark mode.'],
+  ['map','settings','.projlist','Projection','Four ways to flatten the globe. Winkel Tripel balances everything, Miller is rectangular like Been, Equal Earth shows true sizes, Robinson is the classroom map. Each lists its pros and cons. All of them spin.'],
+  ['map','settings','#cntBox','How you count','Count England, Scotland, Wales and Northern Ireland separately, count territories, and set your home country.'],
   ['map','settings','#stTree','States everywhere, or not','One switch for all states and provinces, one per region with Choose countries beside it, and one on each country’s page. Disputed territories have their own switch.'],
   ['map','settings','[data-act=backup]','Keep a backup','Everything stays on this phone, with no account. Save a backup file now and then, photos included, and restore it on a new phone.'],
   ['map','','#themeBtn','Light or dark','Tap to switch. Settings can also follow your phone.'],

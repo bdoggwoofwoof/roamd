@@ -52,7 +52,7 @@ const ic=(n,c='')=>`<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true">
 /* ---------- storage ---------- */
 const LS='roamed.v1';
 let S;
-const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'blueridge',palV:3,liftV:1,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
+const blank=()=>({v:1,countries:{},sections:[],plans:[],friends:[],airports:{},me:'',settings:{theme:'auto',palette:'blueridge',palV:4,liftV:1,palCustom:null,planes:true,lastBackup:0,nag:0,tourDone:false},saved:0});
 let dbp;
 function db(){return dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('roamed',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('photos',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
 async function idb(store,mode,fn){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(store,mode);let out;const r=fn(t.objectStore(store));if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
@@ -69,7 +69,7 @@ async function load(){
   S=Object.assign(blank(),best||{});const hadV=best&&best.settings&&best.settings.palV;S.settings=Object.assign(blank().settings,S.settings||{});
   if(best&&!hadV){if(!best.settings||!best.settings.palette||best.settings.palette==='classic')S.settings.palette='atlas';S.settings.palV=2}
   if(best&&!S.settings.liftV){for(const cc of Object.keys(S.countries)){const c=S.countries[cc];for(const x of[...Object.values(c.regions||{}),...Object.values(c.cities||{})])for(const k of['lived','been','drive','want'])if(x[k]&&!c[k]&&!(k==='drive'&&(c.been||c.lived)))setFlags(c,k,true)}S.settings.liftV=1}
-  if(best&&(S.settings.palV||0)<3){if(S.settings.palette==='atlas')S.settings.palette='blueridge';S.settings.palV=3}
+  if(best&&(S.settings.palV||0)<4){if(!PALETTES[S.settings.palette]&&S.settings.palette!=='custom')S.settings.palette='blueridge';S.settings.palV=4}
 }
 let saveT;
 function save(){
@@ -222,15 +222,13 @@ function renderMapView(){
 }
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
+// A few well-made themes, like Ironwood: Blue Ridge, Forest, and one color-blind tile with two kinds. [name, note, dark, light]
+// Every status stands clear of empty land; Lived is the strongest, Want to go the lightest touch.
 const PALETTES={
-  blueridge:['Blue Ridge','Navy Lived, Carolina blue Been, light blue Drove through, hazy periwinkle Want to go, grey for plans',{been:'#7bafd4',want:'#4f557f',lived:'#e3eef8',drive:'#4f7698'},{been:'#4b9cd3',want:'#b7bde3',lived:'#13294b',drive:'#a9cfec'}],
-  atlas:['Atlas','Teal, ochre, Carolina blue for Lived, sage',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
-  classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
-  sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],
-  ocean:['Ocean','',{been:'#2ec4d6',want:'#9be564',lived:'#6f8cff',drive:'#ffb86b'},{been:'#00838f',want:'#4f9d2a',lived:'#3352d6',drive:'#d9822b'}],
-  forest:['Forest','',{been:'#7bc96f',want:'#e8c547',lived:'#c47ad6',drive:'#5ab0d6'},{been:'#3c8a3a',want:'#b58900',lived:'#8e44ad',drive:'#2f86ad'}],
-  rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#56b4e9',want:'#f0c000',lived:'#e07bb4',drive:'#e8743b'},{been:'#0072b2',want:'#c99a00',lived:'#b0457f',drive:'#d55e00'}],
-  by:['Blue-yellow friendly','For tritanopia',{been:'#26c6da',want:'#ff8fb1',lived:'#b39ddb',drive:'#ff7043'},{been:'#00838f',want:'#d81b60',lived:'#5e35b1',drive:'#d84315'}],
+  blueridge:['Blue Ridge','Navy, Carolina blue, light blue, hazy periwinkle',{been:'#7bafd4',want:'#5c63a0',lived:'#e3eef8',drive:'#4f7698'},{been:'#3f8fc8',want:'#9fa6da',lived:'#13294b',drive:'#8ec0e8'}],
+  forest:['Forest','Dark and light green, dark and light brown',{been:'#6fae60',want:'#8a6642',lived:'#c6e8b4',drive:'#c99d68'},{been:'#6aa35a',want:'#bb9058',lived:'#1f4a2a',drive:'#6b4528'}],
+  rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#3d8fc6',want:'#cc79a7',lived:'#a8d8f7',drive:'#e69f00'},{been:'#3a9ad6',want:'#c56a9c',lived:'#0b4f7c',drive:'#d48a00'}],
+  by:['Blue-yellow friendly','For tritanopia',{been:'#e0607e',want:'#9a4a66',lived:'#ffb3c1',drive:'#2bb3bf'},{been:'#d94f70',want:'#ec90a5',lived:'#7a1630',drive:'#00838f'}],
 };
 const lum=h=>{const n=parseInt(h.slice(1),16);const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(n>>16)+.7152*f((n>>8)&255)+.0722*f(n&255)};
 const inkFor=h=>lum(h)>.2?'#14171b':'#ffffff';
@@ -238,32 +236,34 @@ const hsv2hex=(h,s,v)=>{h=((h%360)+360)%360;const f=n=>{const k=(n+h/60)%6;retur
 const hex2hsv=hex=>{const n=parseInt(hex.slice(1),16);const r=(n>>16)/255,g=((n>>8)&255)/255,b=(n&255)/255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d)h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return{h:(h*60+360)%360,s:mx?d/mx:0,v:mx}};
 const KEYS=['been','want','lived','drive'];
 function customPal(c){
-  c=c||S.settings.palCustom||customFrom('classic');if(c.cols.length<KEYS.length){const q=hex2hsv(PALETTES.classic[2].drive);c.cols=c.cols.concat([{h:q.h,s:q.s}])}const v=c.v;
+  c=c||S.settings.palCustom||customFrom('blueridge');if(c.cols.length<KEYS.length){const q=hex2hsv(PALETTES.blueridge[2].drive);c.cols=c.cols.concat([{h:q.h,s:q.s}])}const v=c.v;
   const dark=c.cols.map(x=>hsv2hex(x.h,x.s,v)),light=c.cols.map(x=>hsv2hex(x.h,Math.min(1,x.s*1.08+.05),Math.max(.35,v*.72)));
   const mk=cs=>({been:cs[0],want:cs[1],lived:cs[2],drive:cs[3]});
   return['Custom','Your three colors',mk(dark),mk(light)];
 }
-function customFrom(k){const P=PALETTES[k]||PALETTES.classic;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
-const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.atlas;
+function customFrom(k){const P=PALETTES[k]||PALETTES.blueridge;const d=P[2];const cols=KEYS.map(x=>{const q=hex2hsv(d[x]);return{h:q.h,s:q.s}});return{v:Math.max(.55,Math.max(...KEYS.map(x=>hex2hsv(d[x]).v))),mode:'square',cols}}
+const palFor=k=>k==='custom'?customPal():PALETTES[k]||PALETTES.blueridge;
 function palVars(c){return KEYS.map(k=>`--${k}:${c[k]};--${k}-ink:${inkFor(c[k])};`).join('')}
 function applyHomeColor(){document.documentElement.style.setProperty('--home',S.settings.homeColor||'#2f5f8a')}
 function applyPalette(){applyHomeColor();
-  let el=$('#palette');const k=S.settings.palette||'atlas';
-  if(k==='atlas'){if(el)el.remove();return}
+  let el=$('#palette');const k=S.settings.palette||'blueridge';
   if(!el){el=document.createElement('style');el.id='palette';document.head.appendChild(el)}
   const P=palFor(k),d=P[2],l=P[3];
   el.textContent=`html:root{${palVars(l)}--want-ink:#1f2a33;}@media (prefers-color-scheme:dark){html:root:not([data-theme="light"]){${palVars(d)}}}html:root[data-theme="dark"]{${palVars(d)}}`;
 }
 function paletteHTML(){
-  const cur=S.settings.palette||'atlas',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
+  const cur=S.settings.palette||'blueridge',dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
   const sw=P=>{const c=P[dark?2:3];return`<span class="sw">${KEYS.map(k=>`<i style="background:${c[k]}"></i>`).join('')}</span>`};
-  return`<div class="pal-grid">${Object.entries(PALETTES).map(([k,P])=>`<button class="pal${cur===k?' on':''}" data-act="pal" data-v="${k}" aria-pressed="${cur===k}">${sw(P)}<span class="pn">${P[0]}</span>${P[1]?`<span class="pd">${P[1]}</span>`:''}</button>`).join('')}
-  <button class="pal${cur==='custom'?' on':''}" data-act="palcustom" aria-pressed="${cur==='custom'}">${sw(customPal())}<span class="pn">Custom</span><span class="pd">${S.settings.palCustom?'Tap to edit':'Pick your own three'}</span></button></div>`;
+  const cb=cur==='rg'||cur==='by';
+  const tile=(k,v,P,n,d,on)=>`<button class="pal${on?' on':''}" data-act="pal" data-v="${v}" aria-pressed="${on}">${sw(P)}<span class="pn">${n}</span><span class="pd">${d}</span></button>`;
+  return`<div class="pal-grid">${tile('blueridge','blueridge',PALETTES.blueridge,'Blue Ridge',PALETTES.blueridge[1],cur==='blueridge')}${tile('forest','forest',PALETTES.forest,'Forest',PALETTES.forest[1],cur==='forest')}${tile('cb',cb?cur:'rg',PALETTES[cb?cur:'rg'],'Color-blind friendly','Two kinds to choose from',cb)}
+  <button class="pal${cur==='custom'?' on':''}" data-act="palcustom" aria-pressed="${cur==='custom'}">${sw(customPal())}<span class="pn">Custom</span><span class="pd">${S.settings.palCustom?'Tap to edit':'Pick your own'}</span></button></div>
+  ${cb?`<div class="seg" role="group" aria-label="Kind of color blindness">${[['rg','Red-green'],['by','Blue-yellow']].map(([k,l])=>`<button class="${cur===k?'on':''}" data-act="pal" data-v="${k}" aria-pressed="${cur===k}">${l}</button>`).join('')}</div><p class="small muted">${cur==='rg'?'For protanopia and deuteranopia.':'For tritanopia.'}</p>`:''}`;
 }
 const HARMONY=[['complementary','Complementary',[180]],['split','Split',[150,210]],['triadic','Triadic',[120,240]],['square','Square',[90,180,270]],['analogous','Analogous',[-30,30]]];
 const SLOTS=[['Been','Countries, states and cities you’ve been to'],['Want to go','Places on your list'],['Lived','Places you’ve lived'],['Drove through','Places you only passed through']];
 function openColors(){
-  const c=JSON.parse(JSON.stringify(S.settings.palCustom||customFrom(S.settings.palette||'classic')));if(c.cols.length<KEYS.length){const q=hex2hsv(PALETTES.classic[2].drive);c.cols.push({h:q.h,s:q.s})}
+  const c=JSON.parse(JSON.stringify(S.settings.palCustom||customFrom(S.settings.palette||'blueridge')));if(c.cols.length<KEYS.length){const q=hex2hsv(PALETTES.blueridge[2].drive);c.cols.push({h:q.h,s:q.s})}
   let sel=0,target=1;const R=130;
   const o=sheet({
     render(el){

@@ -237,9 +237,10 @@ function renderMapView(){
 // Every status stands clear of empty land. Colors stay the same in light and dark where they can; a dark one is only lifted enough to show on the dark map.
 const PALETTES={
   blueridge:['Blue Ridge','Dark blue, Carolina blue, chocolate and sand',{been:'#4b9cd3',want:'#cfb487',lived:'#2a5f95',drive:'#86603f'},{been:'#4b9cd3',want:'#cfb487',lived:'#1f4e79',drive:'#6b4a2f'}],
-  forest:['Forest','Dark and light green, chocolate and sand',{been:'#6fae60',want:'#7a6446',lived:'#c6e8b4',drive:'#b88a62'},{been:'#6aa35a',want:'#cfb487',lived:'#1f4a2a',drive:'#6b4a2f'}],
-  rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#3d8fc6',want:'#cc79a7',lived:'#a8d8f7',drive:'#e69f00'},{been:'#3a9ad6',want:'#c56a9c',lived:'#0b4f7c',drive:'#d48a00'}],
-  by:['Blue-yellow friendly','For tritanopia',{been:'#e0607e',want:'#9a4a66',lived:'#ffb3c1',drive:'#2bb3bf'},{been:'#d94f70',want:'#ec90a5',lived:'#7a1630',drive:'#00838f'}],
+  forest:['Forest','Dark and light green, chocolate and sand',{been:'#6aa35a',want:'#cfb487',lived:'#3f7a4c',drive:'#86603f'},{been:'#6aa35a',want:'#cfb487',lived:'#1f4a2a',drive:'#6b4a2f'}],
+  // Color-blind sets keep the Blue Ridge pattern (a dark and a light main color, a dark and a light second color) on hue pairs each kind of color vision tells apart.
+  rg:['Red-green friendly','Harbor: indigo, azure, amber and honey',{been:'#3d8bd9',want:'#e0b25a',lived:'#4a5fb0',drive:'#c07f2a'},{been:'#3d8bd9',want:'#e0b25a',lived:'#22336b',drive:'#a8641a'}],
+  by:['Blue-yellow friendly','Rosewood: wine, rose, deep teal and seafoam',{been:'#d9667a',want:'#86c4bf',lived:'#a3405e',drive:'#2f8f8c'},{been:'#d9667a',want:'#86c4bf',lived:'#6e1f3a',drive:'#1f6f73'}],
 };
 const lum=h=>{const n=parseInt(h.slice(1),16);const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(n>>16)+.7152*f((n>>8)&255)+.0722*f(n&255)};
 const inkFor=h=>lum(h)>.2?'#14171b':'#ffffff';
@@ -276,7 +277,7 @@ function paletteHTML(){
   const tile=(k,v,P,n,d,on)=>`<button class="pal${on?' on':''}" data-act="pal" data-v="${v}" aria-pressed="${on}">${sw(P)}<span class="pn">${n}</span><span class="pd">${d}</span></button>`;
   return`<div class="pal-grid">${tile('blueridge','blueridge',PALETTES.blueridge,'Blue Ridge',PALETTES.blueridge[1],cur==='blueridge')}${tile('forest','forest',PALETTES.forest,'Forest',PALETTES.forest[1],cur==='forest')}${tile('cb',cb?cur:'rg',PALETTES[cb?cur:'rg'],'Color-blind friendly','Two kinds to choose from',cb)}
   <button class="pal${cur==='custom'?' on':''}" data-act="palcustom" aria-pressed="${cur==='custom'}">${sw(customPal())}<span class="pn">Custom</span><span class="pd">${S.settings.palCustom?'Tap to edit':'Pick your own'}</span></button></div>
-  ${cb?`<div class="seg" role="group" aria-label="Kind of color blindness">${[['rg','Red-green'],['by','Blue-yellow']].map(([k,l])=>`<button class="${cur===k?'on':''}" data-act="pal" data-v="${k}" aria-pressed="${cur===k}">${l}</button>`).join('')}</div><p class="small muted">${cur==='rg'?'For protanopia and deuteranopia.':'For tritanopia.'}</p>`:''}`;
+  ${cb?`<div class="seg" role="group" aria-label="Kind of color blindness">${[['rg','Red-green'],['by','Blue-yellow']].map(([k,l])=>`<button class="${cur===k?'on':''}" data-act="pal" data-v="${k}" aria-pressed="${cur===k}">${l}</button>`).join('')}</div><p class="small muted">${cur==='rg'?'Harbor: indigo, azure, amber and honey. For protanopia and deuteranopia.':'Rosewood: wine, rose, deep teal and seafoam. For tritanopia.'}</p>`:''}`;
 }
 const HARMONY=[['complementary','Complementary',[180]],['split','Split',[150,210]],['triadic','Triadic',[120,240]],['square','Square',[90,180,270]],['analogous','Analogous',[-30,30]]];
 const SLOTS=[['Been','Countries, states and cities you’ve been to'],['Want to go','Places on your list'],['Lived','Places you’ve lived'],['Drove through','Places you only passed through']];

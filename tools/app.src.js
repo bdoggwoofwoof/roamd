@@ -199,7 +199,7 @@ function zoomRegion(rc){
   mapSvg.transition().duration(600).call(zoom.transform,d3.zoomIdentity.translate(MW/2-k*(x0+x1)/2+rad(curRot)*k*EQ,MH/2-k*(y0+y1)/2).scale(k));
 }
 function pxPerUnit(){const r=mapSvg.node().getBoundingClientRect();return(Math.min(r.width/MW,r.height/MH)||.4)*curK}
-function sizeDots(){if(!mapDots)return;const u=pxPerUnit();sizePatterns(u);
+function sizeDots(){if(!mapDots)return;const u=pxPerUnit();sizePatterns(u);mapSvg.classed('zin',curK>=3);
   // dots shrink away once you've zoomed in far enough to see the real shape
   mapDots.style('display',u>14?'none':null);
   mapDots.select('.dm').attr('r',d=>(ctier(d.cc)?4.2:2.6)/u);mapDots.select('.hit').attr('r',11/u);sizePoints();sizeLists();sizeBorders()}

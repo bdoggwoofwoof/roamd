@@ -484,8 +484,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 
 /* in state view, states you haven't marked are empty land, not the country's color */
 #mapBox .rg.s-none{fill:var(--land);stroke:color-mix(in srgb,var(--ink) 20%,var(--land))}
-/* the rest of a country you've been to part of: a faint wash of its color */
-#mapBox .rg.s-none.u-lived{fill:color-mix(in srgb,var(--lived) 30%,var(--land))}#mapBox .rg.s-none.u-been{fill:color-mix(in srgb,var(--been) 30%,var(--land))}#mapBox .rg.s-none.u-drive{fill:color-mix(in srgb,var(--drive) 30%,var(--land))}#mapBox .rg.s-none.u-want{fill:color-mix(in srgb,var(--want) 30%,var(--land))}#mapBox .rg.s-none.u-plan{fill:color-mix(in srgb,var(--plan) 30%,var(--land))}
+/* the rest of a country you've been to part of.
+   Zoomed out: unmarked states are see-through, so the whole country shows its status color and stands out.
+   Zoomed in: they turn a lighter shade of that color, so the states you marked stand apart. */
+#mapBox svg:not(.zin) .rg.s-none[class*=" u-"]{fill:transparent}
+:root{--wash:var(--land);--washp:48%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--wash:#c9d2da;--washp:42%}}
+:root[data-theme="dark"]{--wash:#c9d2da;--washp:42%}
+#mapBox svg.zin .rg.s-none.u-lived{fill:color-mix(in srgb,var(--lived) var(--washp),var(--wash))}#mapBox svg.zin .rg.s-none.u-been{fill:color-mix(in srgb,var(--been) var(--washp),var(--wash))}#mapBox svg.zin .rg.s-none.u-drive{fill:color-mix(in srgb,var(--drive) var(--washp),var(--wash))}#mapBox svg.zin .rg.s-none.u-want{fill:color-mix(in srgb,var(--want) var(--washp),var(--wash))}#mapBox svg.zin .rg.s-none.u-plan{fill:color-mix(in srgb,var(--plan) var(--washp),var(--wash))}
 </style>
 </head>
 <body>

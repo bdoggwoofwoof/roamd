@@ -225,8 +225,8 @@ function renderMapView(){
 // A few well-made themes, like Ironwood: Blue Ridge, Forest, and one color-blind tile with two kinds. [name, note, dark, light]
 // Every status stands clear of empty land; Lived is the strongest, Want to go the lightest touch.
 const PALETTES={
-  blueridge:['Blue Ridge','Navy, Carolina blue, light blue, hazy periwinkle',{been:'#7bafd4',want:'#5c63a0',lived:'#e3eef8',drive:'#4f7698'},{been:'#3f8fc8',want:'#9fa6da',lived:'#13294b',drive:'#8ec0e8'}],
-  forest:['Forest','Dark and light green, dark and light brown',{been:'#6fae60',want:'#8a6642',lived:'#c6e8b4',drive:'#c99d68'},{been:'#6aa35a',want:'#bb9058',lived:'#1f4a2a',drive:'#6b4528'}],
+  blueridge:['Blue Ridge','Carolina blue, dark blue, chocolate and sand',{been:'#5b8fc7',want:'#7a6446',lived:'#9ccbee',drive:'#b88a62'},{been:'#1f4e79',want:'#cfb487',lived:'#4b9cd3',drive:'#6b4a2f'}],
+  forest:['Forest','Dark and light green, chocolate and sand',{been:'#6fae60',want:'#7a6446',lived:'#c6e8b4',drive:'#b88a62'},{been:'#6aa35a',want:'#cfb487',lived:'#1f4a2a',drive:'#6b4a2f'}],
   rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#3d8fc6',want:'#cc79a7',lived:'#a8d8f7',drive:'#e69f00'},{been:'#3a9ad6',want:'#c56a9c',lived:'#0b4f7c',drive:'#d48a00'}],
   by:['Blue-yellow friendly','For tritanopia',{been:'#e0607e',want:'#9a4a66',lived:'#ffb3c1',drive:'#2bb3bf'},{been:'#d94f70',want:'#ec90a5',lived:'#7a1630',drive:'#00838f'}],
 };

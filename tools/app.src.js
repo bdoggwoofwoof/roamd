@@ -10,7 +10,18 @@ const CORE=C.filter(c=>c.core).length;
 const MAPNAME={"Kosovo":"XK","N. Cyprus":"CY","Somaliland":"SO"};
 const CDN={d3:'vendor/d3.min.js',proj:'vendor/d3-geo-projection.min.js',topo:'vendor/topojson-client.min.js',map:'vendor/countries-50m.json'};
 // The atlas uses the Winkel Tripel projection (National Geographic's world map since 1998).
-const atlasProj=()=>d3.geoWinkel3();
+// Map projections people can pick in Settings. All of them spin east–west the same way.
+const PROJS={
+  winkel:['Winkel Tripel','Balanced shapes and sizes, the National Geographic world map',()=>d3.geoWinkel3()],
+  miller:['Miller','Rectangular, like Been; the far north looks bigger',()=>d3.geoMiller()],
+  equalearth:['Equal Earth','Every country at its true size',()=>d3.geoEqualEarth()],
+  robinson:['Robinson','Rounded classroom map',()=>d3.geoRobinson()],
+};
+const projKey=()=>{try{return PROJS[S.settings.proj]?S.settings.proj:'winkel'}catch(e){return'winkel'}};
+const atlasProj=()=>PROJS[projKey()][2]();
+// Fit the world into the map box. Miller is too tall to fit whole, so it fills the width and trims the poles, like Been.
+function fitWorld(p,x0,y0,x1,y1){if(projKey()!=='miller')return p.fitExtent([[x0,y0],[x1,y1]],{type:'Sphere'});
+  p.fitWidth(x1-x0,{type:'Sphere'});const[tx]=p.translate();const top=p([0,83])[1];p.translate([tx+x0,p.translate()[1]+y0-top]);return p}
 const STATUS_L={idea:'Idea',booked:'Booked',done:'Done'};
 const KL={been:'Been',want:'Want to go',lived:'Lived',drive:'Drove through'};
 const QL={been:'Been',want:'Want',lived:'Lived',drive:'Drove'};
@@ -126,7 +137,7 @@ function loadGeo(){return geoP||(geoP=(async()=>{
   await loadScript(CDN.d3);await loadScript(CDN.proj);await loadScript(CDN.topo);
   const topo=await (await fetch(CDN.map)).json();
   FEATS=topojson.feature(topo,topo.objects.countries).features;
-  const proj=atlasProj().fitExtent([[4,4],[MW-4,MH-4]],{type:'Sphere'});
+  const proj=fitWorld(atlasProj(),4,4,MW-4,MH-4);
   geoPath=d3.geoPath(proj);bigProj=atlasProj().scale(proj.scale()).translate(proj.translate());bigPath=d3.geoPath(bigProj);
   // EQ: map units per radian of longitude along the equator (Winkel Tripel is linear there), so the side copies line up
   EQ=(proj([90,0])[0]-proj([0,0])[0])/(Math.PI/2);
@@ -658,7 +669,7 @@ async function makeSharePicture(kind){
   ctx.fillStyle=col.ink;ctx.font=`700 ${story?76:64}px ${serif}`;ctx.textBaseline='alphabetic';ctx.fillText(S.me?`${S.me}’s travel map`:'My travel map',60,ty0);
   ctx.fillStyle=col.muted;ctx.font=`500 30px ${sans}`;ctx.fillText(new Date().toLocaleDateString(undefined,{month:'long',year:'numeric'}),60,ty0+48);
   const top=story?ty0+110:210,mh=540;
-  const proj=atlasProj().fitExtent([[40,top],[W-40,top+mh]],{type:'Sphere'});const path=d3.geoPath(proj,ctx);
+  const proj=fitWorld(atlasProj(),40,top,W-40,top+mh);const path=d3.geoPath(proj,ctx);
   ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=col.sea;ctx.fill();
   const fillOf=cc=>{if(!cc)return col.land;const t=ctier(cc);return t?col[t]:col.land};
   for(const p of PATHD){ctx.beginPath();path(p.f);ctx.fillStyle=fillOf(p.cc);ctx.fill();ctx.strokeStyle=col.bg;ctx.lineWidth=.6;ctx.stroke()}
@@ -1085,7 +1096,8 @@ async function renderStats(){
 }
 
 /* ---------- settings, help, backup ---------- */
-function applyTheme(){setTimeout(themeIcon);const t=S.settings.theme;if(t==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.dataset.theme=t;const m=$('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#f6f3ee'}
+function applyMapStyle(){document.documentElement.dataset.mapstyle=S.settings.mapStyle==='clean'?'clean':'atlas'}
+function applyTheme(){applyMapStyle();setTimeout(themeIcon);const t=S.settings.theme;if(t==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.dataset.theme=t;const m=$('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#f6f3ee'}
 async function persist(){try{if(navigator.storage&&navigator.storage.persist)await navigator.storage.persist()}catch(e){}}
 const blobToData=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
 const dataToBlob=async d=>(await fetch(d)).blob();
@@ -1122,6 +1134,9 @@ function openSettings(){
       el.innerHTML=`${shead('<span class="tt"><b>Settings</b></span>')}<div class="sbody">
       <h4 class="sub">Theme</h4><div class="seg">${['auto','light','dark'].map(t=>`<button data-act="theme" data-v="${t}" class="${S.settings.theme===t?'on':''}">${t==='auto'?'Match phone':t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>
       <h4 class="sub">Map colors</h4>${paletteHTML()}
+      <h4 class="sub">Map style</h4><div class="seg">${[['atlas','Atlas'],['clean','Clean']].map(([k,l])=>`<button data-act="mstyle" data-v="${k}" class="${(S.settings.mapStyle||'atlas')===k?'on':''}" aria-pressed="${(S.settings.mapStyle||'atlas')===k}">${l}</button>`).join('')}</div>
+      <p class="small muted">${(S.settings.mapStyle||'atlas')==='clean'?'Flat land and plain sea, no grid lines.':'Paper land, soft sea and latitude lines.'}</p>
+      <h4 class="sub">Projection</h4><div class="card projlist">${Object.entries(PROJS).map(([k,P])=>`<button class="strow top projrow${projKey()===k?' on':''}" data-act="proj" data-v="${k}" aria-pressed="${projKey()===k}"><span class="stname"><b>${P[0]}</b><small>${P[1]}</small></span>${projKey()===k?ic('check'):''}</button>`).join('')}</div>
       <h4 class="sub">Counting</h4><div id="cntBox"><div class="strow top"><span class="stname"><b>UK nations as four countries</b><small>England, Scotland, Wales and Northern Ireland each count once you mark one of their regions</small></span>${switchHTML(!!S.settings.ukSplit,'data-act="uk"','UK nations as four countries')}</div>
       <div class="strow top"><span class="stname"><b>Count territories</b><small>Puerto Rico, Greenland, Hong Kong and the other ${realC().filter(c=>!c.core).length} territories count toward your total</small></span>${switchHTML(!!S.settings.countTerr,'data-act="terr"','Count territories')}</div>
       <div class="strow top"><span class="stname"><b>Count “Drove through”</b><small>Places you only passed through count toward your total</small></span>${switchHTML(!!S.settings.countDrive,'data-act="cdrive"','Count drove through')}</div>
@@ -1151,6 +1166,8 @@ function openSettings(){
       else if(a==='impfl'){openImportFlights()}else if(a==='impph'){openPhotoImport()}
       else if(a==='theme'){S.settings.theme=t.dataset.v;save();applyTheme();this.refresh()}
       else if(a==='pal'){S.settings.palette=t.dataset.v;save();applyPalette();this.refresh()}
+      else if(a==='mstyle'){S.settings.mapStyle=t.dataset.v;save();applyMapStyle();this.refresh()}
+      else if(a==='proj'){if(t.dataset.v!==projKey()){S.settings.proj=t.dataset.v;save();toast('Redrawing the map…');setTimeout(()=>location.reload(),300)}}
       else if(a==='palcustom'){openColors()}
       else if(a==='backup')saveBackup();else if(a==='csv')exportCSV();
       else if(a==='tour'){await back();startTour()}else if(a==='help'){openHelp()}

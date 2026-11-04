@@ -492,6 +492,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--ink);box-shadow:0 0 0
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--wash:#c9d2da;--washp:42%}}
 :root[data-theme="dark"]{--wash:#c9d2da;--washp:42%}
 #mapBox svg.zin .rg.s-none[class*=" u-"]{fill:var(--g-been)}
+
+/* Map style: Clean = flat land, plain sea, no grid lines (like Been) */
+html[data-mapstyle="clean"]{--sea:#ffffff;--land:#e9e9e9;--grat:transparent}
+html[data-mapstyle="clean"] #mapBox .c,html[data-mapstyle="clean"] .map .c{stroke:#ffffff}
+@media (prefers-color-scheme:dark){html[data-mapstyle="clean"]:not([data-theme="light"]){--sea:#000000;--land:#333333}
+  html[data-mapstyle="clean"]:not([data-theme="light"]) #mapBox .c,html[data-mapstyle="clean"]:not([data-theme="light"]) .map .c{stroke:#000000}}
+html[data-mapstyle="clean"][data-theme="dark"]{--sea:#000000;--land:#333333}
+html[data-mapstyle="clean"][data-theme="dark"] #mapBox .c,html[data-mapstyle="clean"][data-theme="dark"] .map .c{stroke:#000000}
+html[data-mapstyle="clean"] .grat{display:none}
+.projrow{width:100%;text-align:left;display:flex;align-items:center;gap:var(--s3)}
+.projrow .ic,.projrow svg{margin-left:auto;flex:none}
+.projrow.on b{color:var(--ink)}
+.projlist{padding:0;overflow:hidden}.projlist .projrow{border:0;border-radius:0;margin:0;background:transparent;padding:var(--s3) var(--s4)}.projlist .projrow+.projrow{border-top:1px solid var(--line)}
 </style>
 </head>
 <body>

@@ -223,9 +223,9 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 // A few well-made themes, like Ironwood: Blue Ridge, Forest, and one color-blind tile with two kinds. [name, note, dark, light]
-// Every status stands clear of empty land; Lived is the strongest, Want to go the lightest touch.
+// Every status stands clear of empty land. Colors stay the same in light and dark where they can; a dark one is only lifted enough to show on the dark map.
 const PALETTES={
-  blueridge:['Blue Ridge','Carolina blue, dark blue, chocolate and sand',{been:'#5b8fc7',want:'#7a6446',lived:'#9ccbee',drive:'#b88a62'},{been:'#1f4e79',want:'#cfb487',lived:'#4b9cd3',drive:'#6b4a2f'}],
+  blueridge:['Blue Ridge','Carolina blue, dark blue, chocolate and sand',{been:'#2a5f95',want:'#cfb487',lived:'#4b9cd3',drive:'#86603f'},{been:'#1f4e79',want:'#cfb487',lived:'#4b9cd3',drive:'#6b4a2f'}],
   forest:['Forest','Dark and light green, chocolate and sand',{been:'#6fae60',want:'#7a6446',lived:'#c6e8b4',drive:'#b88a62'},{been:'#6aa35a',want:'#cfb487',lived:'#1f4a2a',drive:'#6b4a2f'}],
   rg:['Red-green friendly','For protanopia and deuteranopia',{been:'#3d8fc6',want:'#cc79a7',lived:'#a8d8f7',drive:'#e69f00'},{been:'#3a9ad6',want:'#c56a9c',lived:'#0b4f7c',drive:'#d48a00'}],
   by:['Blue-yellow friendly','For tritanopia',{been:'#e0607e',want:'#9a4a66',lived:'#ffb3c1',drive:'#2bb3bf'},{been:'#d94f70',want:'#ec90a5',lived:'#7a1630',drive:'#00838f'}],

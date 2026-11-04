@@ -223,7 +223,7 @@ function renderMapView(){
 
 /* ---------- v2: colors (Ironwood-style), states/provinces, cities, airports ---------- */
 const PALETTES={
-  blueridge:['Blue Ridge','Navy Lived, Carolina blue Been, light blue Drove through, pale Want to go, grey for plans',{been:'#7bafd4',want:'#33404c',lived:'#e3eef8',drive:'#4f7698'},{been:'#4b9cd3',want:'#e3ecf3',lived:'#13294b',drive:'#a9cfec'}],
+  blueridge:['Blue Ridge','Navy Lived, Carolina blue Been, light blue Drove through, hazy periwinkle Want to go, grey for plans',{been:'#7bafd4',want:'#4f557f',lived:'#e3eef8',drive:'#4f7698'},{been:'#4b9cd3',want:'#b7bde3',lived:'#13294b',drive:'#a9cfec'}],
   atlas:['Atlas','Teal, ochre, Carolina blue for Lived, sage',{been:'#5fb2a4',want:'#e2b75a',lived:'#86bde8',drive:'#98aa8a'},{been:'#3b887c',want:'#c99a2e',lived:'#5e9fd4',drive:'#94a783'}],
   classic:['Classic','',{been:'#3fbf93',want:'#f0b24f',lived:'#8682f2',drive:'#5aa0e0'},{been:'#2f9e7a',want:'#e2a03a',lived:'#5b57d1',drive:'#2f7cc4'}],
   sunset:['Sunset','',{been:'#ff7a3d',want:'#ffd84d',lived:'#ff4d6d',drive:'#9b8cff'},{been:'#d65314',want:'#c99a00',lived:'#c9184a',drive:'#6a5acd'}],

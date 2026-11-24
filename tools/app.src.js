@@ -359,7 +359,7 @@ function openAirports(){
           res=hits.length?`<h3 class="rhead"><span>Matches</span></h3><div class="card">${hits.map(apRow).join('')}</div>`:'<p class="empty">No airport with scheduled flights matches.</p>'}
         const tot=mine.reduce((s,[,x])=>s+x.n,0);
         const nf=flights().length;body.innerHTML=`<div class="btnrow" style="margin-bottom:8px"><button class="btn sm" data-fl="open">${ic('plane')} Flights · ${nf}</button><button class="btn sm ghost" data-fl="import">Import flights</button></div>`+res+`<h3 class="rhead"><span>Your airports</span><small>${mine.length} airports · ${tot} visits</small></h3>${mine.length?`<div class="card">${mine.map(([c,x])=>apRow([c,x.name,x.city,x.cc,x.lat,x.lon])).join('')}</div>`:'<p class="empty">Search above and tap Log for each airport you’ve flown in, out of, or through. A small plane marks each one on the map.</p>'}
-        <h3 class="rhead"><span>Airplanes on the map</span></h3>${planeSegHTML()}<p class="tiny muted">“Hide where I’ve been” leaves planes only in countries you haven’t marked Been or Lived.</p><div class="card">${flightLinesHTML()}</div>`;
+        <h3 class="rhead"><span>Airplanes on the map</span></h3>${planeSegHTML()}<p class="tiny muted">“Hide where I’ve been” leaves planes only in countries you haven’t marked Been or Lived.</p>${flightLinesHTML()}`;
       };list();this.list=list;
     },
     click(e){const pm=e.target.closest('[data-act=planes]');if(pm){setPlaneMode(pm.dataset.v);paintPoints();this.list();return}if(e.target.closest('[data-act=flines]')){toggleFlightLines();this.list();return}const fl=e.target.closest('[data-fl]');if(fl){fl.dataset.fl==='open'?openFlights():openImportFlights(()=>this.list());return}const b=e.target.closest('[data-ap]');if(!b)return;const code=b.dataset.ap;const x=(S.airports||{})[code];
@@ -598,7 +598,9 @@ let gFlight;
 const flightLinesOn=()=>S.settings.flightLines!==false;
 const flightLinesHTML=()=>`<div class="strow top"><span class="stname"><b>Flight lines</b><small>Arcs between airports on your flights</small></span>${switchHTML(flightLinesOn(),'data-act="flines"','Flight lines')}</div>`;
 function toggleFlightLines(){S.settings.flightLines=!flightLinesOn();save();paintFlights()}
-function paintFlights(){if(!gFlight)return;const on=flightLinesOn();const seen=new Set(),data=[];
+// Map button for flight lines: shown once there is a flight to draw; pressed while lines are on.
+function syncRouteBtn(){const b=$('#zroute');if(!b)return;b.hidden=!flights().length;const on=flightLinesOn();b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.setAttribute('aria-label',on?'Hide flight lines':'Show flight lines')}
+function paintFlights(){syncRouteBtn();if(!gFlight)return;const on=flightLinesOn();const seen=new Set(),data=[];
   if(on)for(const f of flights()){const k=[f.from,f.to].sort().join('|');if(seen.has(k))continue;seen.add(k);data.push({k,f})}
   gFlight.selectAll('path').data(data,d=>d.k).join('path').attr('class','farc').attr('d',d=>bigPath({type:'LineString',coordinates:[[d.f.fl[1],d.f.fl[0]],[d.f.tl[1],d.f.tl[0]]]}))}
 
@@ -1148,7 +1150,7 @@ function openSettings(){
       <div class="strow top"><span class="stname"><b>Count “Drove through”</b><small>Places you only passed through count toward your total</small></span>${switchHTML(!!S.settings.countDrive,'data-act="cdrive"','Count drove through')}</div>
       ${homeHTML()}</div>
       <h4 class="sub">States &amp; provinces</h4>${statesTreeHTML()}
-      <h4 class="sub">Airplanes on the map</h4>${planeSegHTML()}<p class="tiny muted">“Hide where I’ve been” keeps planes only in countries you haven’t marked Been or Lived.</p><div class="card">${flightLinesHTML()}</div>
+      <h4 class="sub">Airplanes on the map</h4>${planeSegHTML()}<p class="tiny muted">“Hide where I’ve been” keeps planes only in countries you haven’t marked Been or Lived.</p>${flightLinesHTML()}
       <h4 class="sub">Disputed territories</h4><div class="strow top"><span class="stname"><b>Show disputed territories</b><small>Somaliland, Northern Cyprus, Abkhazia, Crimea, Kashmir areas and ${DISP.length-5} more become their own places to mark. They’re never counted in your countries.</small></span>${switchHTML(!!S.settings.disputed,'data-act="disp"','Show disputed territories')}</div>
       <h4 class="sub">Backup</h4><p class="muted small">Roamd saves on this phone only. A backup file holds everything, photos included. Last backup: <b>${S.settings.lastBackup?new Date(S.settings.lastBackup).toLocaleDateString():'never'}</b>.</p>
       <div class="btnrow"><button class="btn" data-act="backup">Save backup</button><label class="btn ghost">Restore from backup<input type="file" accept="application/json,.json" hidden id="restoreIn"></label></div>
@@ -1316,6 +1318,7 @@ const TOUR=[
   ['map','','#regionSel','Jump to a region','Zoom straight to Europe, Southeast Asia, the Middle East and the rest.'],
   ['map','','#zfull','Full screen','Make the map fill the screen. Back, or the same button, returns. Country maps and Compare maps have one too.'],
   ['map','','#zstate','States on or off','Show or hide states and provinces on the big map. It only changes the view: your marks and the States setting stay as they are.'],
+  ['map','','#zroute','Flight lines','Show or hide the arcs between airports on your flights. Appears once you’ve logged a flight; also in Settings.'],
   ['map','','#zplane','Airports and flights','Log airports and whole flights. Planes mark airports and arcs show your routes. Import your history from Flighty, OpenFlights or myFlightradar24.'],
   ['list','','#clist .crow .qb','Quick marking','Tap Been, Want, Lived or Drove right on a country’s row. Drove through is for places you only passed through; it has its own color and doesn’t count toward your total unless you turn that on.'],
   ['list','','#clist .stctl','States, region by region','Turn states and provinces on or off for a whole region here, or choose which countries keep them.'],
@@ -1403,7 +1406,7 @@ function wire(){
   $('#setBtn').onclick=openSettings;$('#themeBtn').onclick=()=>{S.settings.theme=isDark()?'light':'dark';save();applyTheme()};$('#helpBtn').onclick=openHelp;
   $('#zin').onclick=()=>mapReady&&mapSvg.transition().call(zoom.scaleBy,1.6);
   $('#zout').onclick=()=>mapReady&&mapSvg.transition().call(zoom.scaleBy,1/1.6);
-  $('#zplane').onclick=openAirports;$('#zstate').onclick=toggleStView;$('#zfull').onclick=toggleMapFS;$('#photoImp').onclick=openPhotoImport;
+  $('#zplane').onclick=openAirports;$('#zroute').onclick=()=>{toggleFlightLines();toast(flightLinesOn()?'Flight lines on':'Flight lines off')};$('#zstate').onclick=toggleStView;$('#zfull').onclick=toggleMapFS;$('#photoImp').onclick=openPhotoImport;
   $('#statsBox').onclick=e=>{const b=e.target.closest('[data-st]');if(b){const a=b.dataset.st;if(a==='share')openSharePicture();else if(a==='timeline')openTimeline();else if(a==='flights')openFlights();else if(a==='import')openImportFlights();else if(a==='home')pickCountry('Your home country',cc=>{S.settings.home=cc;save()});return}const l=e.target.closest('[data-list]');if(l)openList(l.dataset.list)};
   $('#zreset').onclick=()=>{$('#regionSel').value='';zoomRegion('')};
   $('#regionSel').innerHTML='<option value="">Whole world</option>'+REGIONS.map(([rc,rn])=>`<option value="${rc}">${rn}</option>`).join('');

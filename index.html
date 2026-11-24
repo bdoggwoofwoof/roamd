@@ -506,6 +506,11 @@ html[data-mapstyle="clean"] .grat{display:none}
 .projrow.on b{color:var(--ink)}
 .projrow .pc{display:block;margin-top:2px}.projrow .pro,.projrow .con{display:inline-block;width:1em;font-weight:700;color:var(--ink)}
 .projlist{padding:0;overflow:hidden}.projlist .projrow{border:0;border-radius:0;margin:0;background:transparent;padding:var(--s3) var(--s4)}.projlist .projrow+.projrow{border-top:1px solid var(--line)}
+
+/* lakes drawn as water over countries and states; states in a country with none marked show the country's color */
+.lake{fill:var(--sea);stroke:color-mix(in srgb,var(--ink) 22%,transparent);stroke-width:.5;vector-effect:non-scaling-stroke;pointer-events:none}
+#mapBox .rg.s-whole{fill:transparent;stroke:color-mix(in srgb,var(--sea) 45%,transparent);stroke-width:.6}
+.flights path.farc{display:inline}
 </style>
 </head>
 <body>

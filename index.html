@@ -513,6 +513,15 @@ html[data-mapstyle="clean"] .grat{display:none}
 .flights path.farc{display:inline}
 
 #zroute .ic{width:20px;height:20px}#zroute.on{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}#zroute:not(.on) .ic{opacity:.55}#zroute[hidden]{display:none}
+
+/* lines between marked countries: paper-white on the light map, near-black on the dark one, so two neighbours in the same color stay apart */
+:root{--sepline:#fbf8f0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--sepline:#0b0f13}}
+:root[data-theme="dark"]{--sepline:#0b0f13}
+html[data-mapstyle="clean"]{--sepline:#ffffff}
+@media (prefers-color-scheme:dark){html[data-mapstyle="clean"]:not([data-theme="light"]){--sepline:#000000}}
+html[data-mapstyle="clean"][data-theme="dark"]{--sepline:#000000}
+.map .c[class*=" s-"],html[data-mapstyle] .map .c[class*=" s-"]{stroke:var(--sepline);stroke-width:.9}
 </style>
 </head>
 <body>
